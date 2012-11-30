@@ -5,7 +5,7 @@ object Build extends Build {
   lazy val root = Project(
     "sbt-elasticbeanstalk",
     file("."),
-    aggregate = Seq(sbtElasticBeanstalkPlugin),
+    aggregate = Seq(sbtElasticBeanstalkPlugin, sbtElasticBeanstalkCore),
     settings = commonSettings ++ Seq(
       publishArtifact := false
     )
@@ -14,9 +14,7 @@ object Build extends Build {
   lazy val sbtElasticBeanstalkCore = Project(
     "sbt-elasticbeanstalk-core",
     file("core"),
-    settings = commonSettings ++ Seq(
-      publishArtifact := false
-    )
+    settings = commonSettings
   ).settings(
     libraryDependencies ++= Seq(
       "com.amazonaws" % "aws-java-sdk" % "1.3.26",
@@ -29,8 +27,11 @@ object Build extends Build {
     file("plugin"),
     settings = commonSettings
   ).settings(
-    sbtPlugin := true
-  )
+    sbtPlugin := true,
+    libraryDependencies ++= Seq(
+      "com.github.play2war" % "play2-war-plugin" % "0.9-SNAPSHOT" % "provided->default(compile)" extra ("scalaVersion" -> "2.9.2", "sbtVersion" -> "0.12")
+    )
+  ).dependsOn(sbtElasticBeanstalkCore).aggregate(sbtElasticBeanstalkCore)
 
   def commonSettings = Defaults.defaultSettings ++ Seq(
     organization := "com.blendlabsinc",
