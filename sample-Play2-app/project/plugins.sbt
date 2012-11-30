@@ -6,6 +6,6 @@ resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver
 
 // resolvers += Resolver.file("Local Ivy", file(Path.userHome + "/.ivy2/local"))(Resolver.ivyStylePatterns)
 
-addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9-SNAPSHOT")
+addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9a-SNAPSHOT")
 
 addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk-plugin" % "0.0.2-SNAPSHOT")

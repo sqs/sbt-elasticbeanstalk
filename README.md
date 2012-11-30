@@ -16,7 +16,7 @@ In `project/plugins.sbt`, add:
 ```scala
 resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns)
 
-addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9-SNAPSHOT")
+addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9a-SNAPSHOT")
 
 addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk" % "0.0.2-SNAPSHOT")
 ```
@@ -67,6 +67,12 @@ Once you've configured sbt-elasticbeanstalk as described above, run the sbt `eb-
 1. Create a WAR file for your application (using [play2-war-plugin][play2war]);
 2. Upload the WAR to S3 in the bucket you specified; and
 3. Update your Elastic Beanstalk environment to use the new WAR.
+
+
+Features
+--------
+
+**.ebextensions**: [Play2-war-plugin][play2war]'s `webappResource` sbt key is set to `war` by default, so any directories or files in the `war/` directory will be added to the generated WAR file. The included Play2 sample app has an example `war/.ebextensions` directory that sets some Elastic Beanstalk configuration settings.
 
 
 License
