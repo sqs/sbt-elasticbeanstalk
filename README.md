@@ -18,7 +18,7 @@ resolvers += Resolver.url("SQS Ivy", url("https://sqs.github.com/repo"))(Resolve
 
 addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9-SNAPSHOT")
 
-addSbtPlugin("com.blendlabsinc" % "sbt-elasticsearch-plugin" % "0.0.1-SNAPSHOT")
+addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk" % "0.0.2-SNAPSHOT")
 ```
 
 (Note: You need the 0.9-SNAPSHOT build of [play2-war-plugin][play2war], which supports Play 2.1 and is built from git master. For convenience, is hosted on the SQS Ivy repository included above.)
@@ -26,7 +26,7 @@ addSbtPlugin("com.blendlabsinc" % "sbt-elasticsearch-plugin" % "0.0.1-SNAPSHOT")
 In `project/Build.scala`, add the following at the top of the file:
 
 ```scala
-import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalk
+import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalk, Deployment }
 import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
 import com.github.play2war.plugin._
 ```
@@ -37,8 +37,12 @@ Add the following settings to your project:
 val main = play.Project(appName, appVersion, appDependencies).settings(
   Play2WarKeys.servletVersion := "3.0",
   ebS3BucketName := "some-bucket-name",
-  ebAppName := "some-app-name",
-  ebEnvironmentName := "some-environment-name",
+  ebDeployments := Seq(
+    Deployment(
+      appName = "some-app-name",
+      environmentName = "some-environment-name"
+    )
+  ),
   ebRegion := "us-west-1"
 )
   .settings(Play2WarPlugin.play2WarSettings: _*)

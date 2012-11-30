@@ -35,7 +35,7 @@ object Build extends Build {
 
   def commonSettings = Defaults.defaultSettings ++ Seq(
     organization := "com.blendlabsinc",
-    version := "0.0.1-SNAPSHOT",
+    version := "0.0.2-SNAPSHOT",
     scalaVersion := "2.9.2",
     scalacOptions ++= Seq("-unchecked", "-deprecation"),
     publishMavenStyle := false,
