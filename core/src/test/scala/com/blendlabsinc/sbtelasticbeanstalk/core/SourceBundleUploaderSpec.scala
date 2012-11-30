@@ -1,9 +1,9 @@
 package com.blendlabsinc.sbtelasticbeanstalk.core
 
-import org.scalatest.Spec
+import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
 
-class SourceBundleUploaderSpec extends Spec with ShouldMatchers {
+class SourceBundleUploaderSpec extends FunSpec with ShouldMatchers {
   it("should upload") {
     val u = new SourceBundleUploader(TestCommon.warFile, TestCommon.s3BucketName, AWS.awsCredentials)
     val s3Location = u.upload()
