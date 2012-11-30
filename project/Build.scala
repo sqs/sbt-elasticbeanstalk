@@ -39,6 +39,7 @@ object Build extends Build {
     scalaVersion := "2.9.2",
     scalacOptions ++= Seq("-unchecked", "-deprecation"),
     publishMavenStyle := false,
+    publishArtifact in Test := false,
     publishArtifact in (Compile, packageDoc) := false,
     publishArtifact in (Compile, packageSrc) := false
   )
