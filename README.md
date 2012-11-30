@@ -14,7 +14,7 @@ Configuration
 In `project/plugins.sbt`, add:
 
 ```scala
-resolvers += Resolver.url("SQS Ivy", url("https://sqs.github.com/repo"))(Resolver.ivyStylePatterns)
+resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns)
 
 addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9-SNAPSHOT")
 
