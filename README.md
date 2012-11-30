@@ -1,7 +1,9 @@
 sbt-elasticbeanstalk
 ====================
 
-This module integrates with [play2-war-plugin][play2war] to let you easily deploy Play2 WAR apps to [Amazon Elastic Beanstalk][awseb]. It uploads your application's WAR file to S3 and deploys it to your Elastic Beanstalk environment.
+This module integrates with [play2-war-plugin][play2war] to let you easily deploy Play2 WAR apps to [Amazon Elastic Beanstalk][awseb].
+
+Once configured, running `sbt eb-deploy` uploads your application's WAR file to S3 and deploys it to your Elastic Beanstalk environment.
 
 A sample using Play 2.1-RC1 is included.
 
