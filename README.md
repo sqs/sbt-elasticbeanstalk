@@ -12,10 +12,14 @@ Configuration
 In `project/plugins.sbt`, add:
 
 ```scala
-// TODO: add resolver here
+resolvers += Resolver.url("SQS Ivy", url("https://sqs.github.com/repo"))(Resolver.ivyStylePatterns)
+
+addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9-SNAPSHOT")
 
 addSbtPlugin("com.blendlabsinc" % "sbt-elasticsearch-plugin" % "0.0.1-SNAPSHOT")
 ```
+
+(Note: You need the 0.9-SNAPSHOT build of [play2-war-plugin][play2war], which supports Play 2.1 and is built from git master. For convenience, is hosted on the SQS Ivy repository included above.)
 
 In `project/Build.scala`, add the following at the top of the file:
 
