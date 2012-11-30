@@ -9,10 +9,11 @@ class Deployer(
   envName: String,
   versionLabel: String,
   bundleS3Location: S3Location,
-  awsCredentials: AWSCredentials
+  awsCredentials: AWSCredentials,
+  region: String
 ) {
   private val eb = new AWSElasticBeanstalkClient(awsCredentials)
-  eb.setEndpoint("https://elasticbeanstalk.us-west-1.amazonaws.com")
+  eb.setEndpoint("https://elasticbeanstalk." + region + ".amazonaws.com")
 
   def deploy(): UpdateEnvironmentResult = {
     val versionDesc = createAppVersion()
