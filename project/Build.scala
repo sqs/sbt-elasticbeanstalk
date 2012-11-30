@@ -11,15 +11,25 @@ object Build extends Build {
     )
   )
 
+  lazy val sbtElasticBeanstalkCore = Project(
+    "sbt-elasticbeanstalk-core",
+    file("core"),
+    settings = commonSettings ++ Seq(
+      publishArtifact := false
+    )
+  ).settings(
+    libraryDependencies ++= Seq(
+      "com.amazonaws" % "aws-java-sdk" % "1.3.26",
+      "org.scalatest" %% "scalatest" % "1.8" % "test"
+    )
+  )
+
   lazy val sbtElasticBeanstalkPlugin = Project(
     "sbt-elasticbeanstalk-plugin",
     file("plugin"),
     settings = commonSettings
   ).settings(
-    sbtPlugin := true,
-    libraryDependencies ++= Seq(
-      "com.amazonaws" % "aws-java-sdk" % "1.3.26"
-    )
+    sbtPlugin := true
   )
 
   def commonSettings = Defaults.defaultSettings ++ Seq(
