@@ -4,7 +4,7 @@ import com.amazonaws.auth.PropertiesCredentials
 import java.io.File
 
 object AWS {
-  val awsCredentials = {
+  lazy val awsCredentials = {
     val file = new File(new File(System.getenv("HOME")), ".aws-credentials")
     if (!file.exists) {
       throw new Exception("AWS credentials file not found at " + file.getAbsolutePath + "\n\n" +
