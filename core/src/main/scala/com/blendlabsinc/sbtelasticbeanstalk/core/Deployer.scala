@@ -17,7 +17,7 @@ class Deployer(
 
   def deploy(): UpdateEnvironmentResult = {
     val versionDesc = createAppVersion()
-    updateEnvironmentToUseNewVersion(versionDesc)
+    updateEnvironmentVersionLabel(versionDesc)
   }
 
   private def createAppVersion(): ApplicationVersionDescription = {
@@ -30,7 +30,7 @@ class Deployer(
     ).getApplicationVersion
   }
 
-  private def updateEnvironmentToUseNewVersion(
+  private def updateEnvironmentVersionLabel(
     newVersion: ApplicationVersionDescription
   ): UpdateEnvironmentResult = {
     eb.updateEnvironment(
