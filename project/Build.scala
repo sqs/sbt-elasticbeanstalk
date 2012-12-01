@@ -28,8 +28,9 @@ object Build extends Build {
     settings = commonSettings
   ).settings(
     sbtPlugin := true,
+    resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns),
     libraryDependencies ++= Seq(
-      "com.github.play2war" % "play2-war-plugin" % "0.9-SNAPSHOT" % "provided->default(compile)" extra ("scalaVersion" -> "2.9.2", "sbtVersion" -> "0.12")
+      "com.github.play2war" % "play2-war-plugin" % "0.9a-SNAPSHOT" % "provided->default(compile)" extra ("scalaVersion" -> "2.9.2", "sbtVersion" -> "0.12")
     )
   ).dependsOn(sbtElasticBeanstalkCore).aggregate(sbtElasticBeanstalkCore)
 
