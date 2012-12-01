@@ -6,8 +6,20 @@ import com.github.play2war.plugin.Play2WarKeys
 import sbt.Keys.{ version, streams }
 
 trait ElasticBeanstalkCommands {
-  val ebDeployTask = (Play2WarKeys.war, eb.ebS3BucketName, eb.ebDeployments, eb.ebRegion, streams) map {
-    (war, s3BucketName, ebDeployments, ebRegion, s) => {
+  val ebDeployTask = (Play2WarKeys.war, eb.ebS3BucketName, eb.ebDeployments, eb.ebRegion, eb.ebRequireJava6, streams) map {
+    (war, s3BucketName, ebDeployments, ebRegion, ebRequireJava6, s) => {
+      if (ebRequireJava6 && System.getProperty("java.specification.version") != "1.6") {
+        throw new Exception(
+          "ebRequireJava6 := true, but you are currently running in Java " +
+          System.getProperty("java.specification.version") + ". As of Dec 2012, " +
+          "Elastic Beanstalk is incompatible with Java7. You should use Java6 to compile " +
+          "and deploy WARs. You can also set ebRequireJava6 := false in " +
+          "your sbt settings to suppress this warning, but beware that Java7-compiled WARs " +
+          "currently fail in strange ways on Elastic Beanstalk."
+        )                    
+      }
+
+
       s.log.info("Uploading " + war.getName + " (" + (war.length/1024/1024) + " MB) " +
                  "to Amazon S3 bucket '" + s3BucketName + "'")
       val u = new SourceBundleUploader(war, s3BucketName, AWS.awsCredentials)
