@@ -12,6 +12,7 @@ object ApplicationBuild extends Build {
   val appDependencies = Seq()
 
   val main = play.Project(appName, appVersion, appDependencies).settings(
+    resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns),
     Play2WarKeys.servletVersion := "3.0",
     ebS3BucketName := "sbt-elasticbeanstalk-test",
     ebDeployments := Seq(
