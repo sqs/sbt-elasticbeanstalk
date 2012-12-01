@@ -2,11 +2,15 @@ package com.blendlabsinc.sbtelasticbeanstalk
 
 import sbt.{ SettingKey, TaskKey }
 
-case class Deployment(appName: String, environmentName: String)
+case class Deployment(
+  appName: String,
+  environmentName: String,
+  environmentVariables: Map[String, String] = Map()
+)
 
 object ElasticBeanstalkKeys {
   val ebS3BucketName = SettingKey[String]("ebS3BucketName", "S3 bucket which should contain uploaded WAR files")
-  val ebDeployments = SettingKey[Seq[Deployment]]("eb-deployments", "List of Elastic Beanstalk deployment targets - (app,env) pairs")
+  val ebDeployments = SettingKey[Seq[Deployment]]("eb-deployments", "List of Elastic Beanstalk deployment targets")
 
   val ebRegion = SettingKey[String]("ebRegion", "Elastic Beanstalk region (e.g., us-west-1)")
 

@@ -36,17 +36,16 @@ trait ElasticBeanstalkCommands {
           "  EB app version label: " + versionLabel + "\n" +
           "  EB app: " + deployment.appName + "\n" +
           "  EB environment: " + deployment.environmentName + "\n" +
-          "  Region: " + ebRegion + "\n\n"
+          "  Region: " + ebRegion + "\n" +
+          "  Environment vars: " + deployment.environmentVariables.toString + "\n\n"
         )
         val d = new Deployer(
           deployment.appName,
           deployment.environmentName,
-          versionLabel,
-          bundleLocation,
           AWS.awsCredentials,
           ebRegion
         )
-        val res = d.deploy()
+        val res = d.deploy(versionLabel, bundleLocation, deployment.environmentVariables)
 
         s.log.info("Elastic Beanstalk deployment complete.\n" +
                    "URL: http://" + res.getCNAME() + "\n" +

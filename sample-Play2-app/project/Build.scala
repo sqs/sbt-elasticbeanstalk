@@ -18,7 +18,8 @@ object ApplicationBuild extends Build {
     ebDeployments := Seq(
       Deployment(
         appName = "sbt-elasticbeanstalk-sample-Play2-app",
-        environmentName = "sbt-eb-sample-Play2"
+        environmentName = "sbt-eb-sample-Play2",
+        environmentVariables = Map("MyFavoriteColor" -> "blue")
       )
     ),
     ebRegion := "us-west-1"
