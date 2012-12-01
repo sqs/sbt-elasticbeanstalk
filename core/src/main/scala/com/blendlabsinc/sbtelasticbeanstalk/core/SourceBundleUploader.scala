@@ -14,7 +14,7 @@ class SourceBundleUploader(
   s3BucketName: String,
   awsCredentials: AWSCredentials
 ) {
-  private val dateFormatter = new SimpleDateFormat("yyMMddHHmmssZ")
+  private val dateFormatter = new SimpleDateFormat("yyyyMMddHHmmssZ")
 
   // TODO: make async
   def upload(): S3Location = {
