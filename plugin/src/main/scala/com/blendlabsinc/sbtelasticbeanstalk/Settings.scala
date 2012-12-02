@@ -9,6 +9,7 @@ trait ElasticBeanstalkSettings {
 
   lazy val elasticBeanstalkSettings = Seq[Setting[_]](
     ebDeploy <<= ebDeployTask,
+    ebWait <<= ebWaitForEnvironmentsTask,
     ebApiDescribeApplications <<= ebApiDescribeApplicationsTask,
     ebApiDescribeEnvironments <<= ebApiDescribeEnvironmentsTask,
     commands ++= Seq(ebApiRestartAppServer),

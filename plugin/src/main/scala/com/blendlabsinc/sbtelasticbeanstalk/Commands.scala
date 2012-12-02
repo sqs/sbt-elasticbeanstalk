@@ -1,9 +1,11 @@
 package com.blendlabsinc.sbtelasticbeanstalk
 
+import com.amazonaws.services.elasticbeanstalk.model._
 import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
 import com.blendlabsinc.sbtelasticbeanstalk.core.{ AWS, Deployer, SourceBundleUploader }
 import com.github.play2war.plugin.Play2WarKeys
 import sbt.Keys.streams
+import scala.collection.JavaConversions._
 
 trait ElasticBeanstalkCommands {
   val ebDeployTask = (Play2WarKeys.war, eb.ebS3BucketName, eb.ebDeployments, eb.ebRegion, eb.ebRequireJava6, streams) map {
@@ -51,5 +53,39 @@ trait ElasticBeanstalkCommands {
                    "Status: " + res.getHealth())
       }
     }
+  }
+
+  val ebWaitForEnvironmentsTask = (eb.ebDeployments, eb.ebRegion, streams) map { (ebDeployments, ebRegion, s) =>
+    val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+    for (deployment <- ebDeployments) {
+      val startTime = System.currentTimeMillis
+      var logged = false
+      var done = false
+      while (!done) {
+        val envDesc = ebClient.describeEnvironments(
+          new DescribeEnvironmentsRequest()
+            .withApplicationName(deployment.appName)
+            .withEnvironmentNames(List(deployment.environmentName))
+        ).getEnvironments.head
+        done = (EnvironmentStatus.valueOf(envDesc.getStatus) == EnvironmentStatus.Ready &&
+                EnvironmentHealth.valueOf(envDesc.getHealth) == EnvironmentHealth.Green)
+        if (done) {
+          if (logged) println("\n")
+        } else {
+          if (!logged) {
+            s.log.info("Waiting for  app '" + deployment.appName + "' " +
+                       "environment '" + deployment.environmentName + "' to become Ready and Green...")
+            logged = true
+          }
+          print("\rApp: " + envDesc.getApplicationName + "   " +
+                "Env: " + envDesc.getEnvironmentName + "   " +
+                "Status: " + envDesc.getStatus + "   " +
+                "Health: " + envDesc.getHealth + "   " +
+                "(" + ((System.currentTimeMillis - startTime)/1000) + "s)")
+          java.lang.Thread.sleep(4000)
+        }
+      }
+    }
+    s.log.info("All environments are Ready and Green.")
   }
 }
