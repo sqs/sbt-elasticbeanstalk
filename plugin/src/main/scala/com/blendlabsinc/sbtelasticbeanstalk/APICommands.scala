@@ -23,4 +23,23 @@ trait ElasticBeanstalkAPICommands {
       app
     }.toList
   }
+
+  val ebDescribeEnvironmentsTask = (eb.ebRegion, streams) map { (ebRegion, s) =>
+    AWS.elasticBeanstalkClient(ebRegion).describeEnvironments().getEnvironments.map { env =>
+      s.log.info(
+        "Environment name: " + env.getEnvironmentName + "\n" +
+        "Environment ID: " + env.getEnvironmentId + "\n" +
+        (if (env.getDescription != null && !env.getDescription.isEmpty) {
+          "Description: " + env.getDescription + "\n" } else "") +
+        "Configuration template: " + Option(env.getTemplateName).getOrElse("(none)") + "\n" +
+        "Date: created " + env.getDateCreated.toString + ", updated " + env.getDateUpdated.toString + "\n" +
+        "Status: " + env.getStatus + "\n" +
+        "Health: " + env.getHealth + "\n" +
+        "Deployed version: " + env.getVersionLabel + "\n" +
+        "CNAME: " + env.getCNAME + "\n" +
+        "Endpoint URL: " + env.getEndpointURL + "\n-----"
+      )
+      env
+    }.toList
+  }
 }

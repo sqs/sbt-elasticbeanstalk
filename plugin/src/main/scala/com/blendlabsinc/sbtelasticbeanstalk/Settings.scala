@@ -10,6 +10,7 @@ trait ElasticBeanstalkSettings {
   lazy val elasticBeanstalkSettings = Seq[Setting[_]](
     ebDeploy <<= ebDeployTask,
     ebRequireJava6 := true,
-    ebDescribeApplications <<= ebDescribeApplicationsTask
+    ebDescribeApplications <<= ebDescribeApplicationsTask,
+    ebDescribeEnvironments <<= ebDescribeEnvironmentsTask
   )
 }
