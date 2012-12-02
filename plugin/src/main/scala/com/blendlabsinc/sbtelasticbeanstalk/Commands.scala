@@ -3,7 +3,7 @@ package com.blendlabsinc.sbtelasticbeanstalk
 import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
 import com.blendlabsinc.sbtelasticbeanstalk.core.{ AWS, Deployer, SourceBundleUploader }
 import com.github.play2war.plugin.Play2WarKeys
-import sbt.Keys.{ version, streams }
+import sbt.Keys.streams
 
 trait ElasticBeanstalkCommands {
   val ebDeployTask = (Play2WarKeys.war, eb.ebS3BucketName, eb.ebDeployments, eb.ebRegion, eb.ebRequireJava6, streams) map {
