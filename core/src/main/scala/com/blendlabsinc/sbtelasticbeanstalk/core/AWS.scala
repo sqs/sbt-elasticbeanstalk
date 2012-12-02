@@ -1,6 +1,7 @@
 package com.blendlabsinc.sbtelasticbeanstalk.core
 
 import com.amazonaws.auth.PropertiesCredentials
+import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
 import java.io.File
 
 object AWS {
@@ -13,5 +14,11 @@ object AWS {
                           "secretKey = <your AWS secret key>\n")
     }
     new PropertiesCredentials(file)
+  }
+
+  def elasticBeanstalkClient(region: String): AWSElasticBeanstalkClient = {
+    val c = new AWSElasticBeanstalkClient(awsCredentials)
+    c.setEndpoint("https://elasticbeanstalk." + region + ".amazonaws.com")
+    c
   }
 }

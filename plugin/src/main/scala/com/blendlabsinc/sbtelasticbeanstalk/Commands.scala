@@ -42,8 +42,7 @@ trait ElasticBeanstalkCommands {
         val d = new Deployer(
           deployment.appName,
           deployment.environmentName,
-          AWS.awsCredentials,
-          ebRegion
+          AWS.elasticBeanstalkClient(ebRegion)
         )
         val res = d.deploy(versionLabel, bundleLocation, deployment.environmentVariables)
 

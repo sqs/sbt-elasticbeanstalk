@@ -1,26 +1,22 @@
 package com.blendlabsinc.sbtelasticbeanstalk.core
 
 import com.amazonaws.auth.AWSCredentials
-import com.amazonaws.services.elasticbeanstalk.model._
 import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
+import com.amazonaws.services.elasticbeanstalk.model._
 import scala.collection.JavaConverters._
 
 class Deployer(
   appName: String,
   envName: String,
-  awsCredentials: AWSCredentials,
-  region: String
+  ebClient: AWSElasticBeanstalkClient
 ) {
-  val eb = new AWSElasticBeanstalkClient(awsCredentials)
-  eb.setEndpoint("https://elasticbeanstalk." + region + ".amazonaws.com")
-
   def deploy(versionLabel: String, bundleS3Location: S3Location, envVars: Map[String,String]): UpdateEnvironmentResult = {
     val versionDesc = createAppVersion(versionLabel, bundleS3Location)
     updateEnvironmentVersionLabel(versionDesc, envVars)
   }
 
   private def createAppVersion(versionLabel: String, bundleS3Location: S3Location): ApplicationVersionDescription = {
-    eb.createApplicationVersion(
+    ebClient.createApplicationVersion(
       new CreateApplicationVersionRequest()
         .withApplicationName(appName)
         .withVersionLabel(versionLabel)
@@ -33,7 +29,7 @@ class Deployer(
     newVersion: ApplicationVersionDescription,
     envVars: Map[String,String]
   ): UpdateEnvironmentResult = {
-    eb.updateEnvironment(
+    ebClient.updateEnvironment(
       new UpdateEnvironmentRequest()
         .withEnvironmentName(envName)
         .withVersionLabel(newVersion.getVersionLabel)
