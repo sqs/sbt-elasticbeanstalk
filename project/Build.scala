@@ -7,6 +7,9 @@ object Build extends Build {
     file("."),
     aggregate = Seq(sbtElasticBeanstalkPlugin, sbtElasticBeanstalkCore),
     settings = commonSettings ++ Seq(
+      libraryDependencies ++= Seq(
+        "com.amazonaws" % "aws-java-sdk" % "1.3.26"
+      ),
       publishArtifact := false
     )
   )

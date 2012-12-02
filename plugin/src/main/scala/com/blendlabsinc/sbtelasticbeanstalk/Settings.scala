@@ -2,12 +2,14 @@ package com.blendlabsinc.sbtelasticbeanstalk
 
 import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
 import sbt.Setting
+import sbt.Keys.commands
 
 trait ElasticBeanstalkSettings {
-  this: ElasticBeanstalkCommands =>
+  this: ElasticBeanstalkCommands with ElasticBeanstalkAPICommands =>
 
   lazy val elasticBeanstalkSettings = Seq[Setting[_]](
     ebDeploy <<= ebDeployTask,
-    ebRequireJava6 := true
+    ebRequireJava6 := true,
+    ebDescribeApplications <<= ebDescribeApplicationsTask
   )
 }
