@@ -3,6 +3,7 @@ package com.blendlabsinc.sbtelasticbeanstalk
 import com.amazonaws.services.elasticbeanstalk.model._
 import com.blendlabsinc.sbtelasticbeanstalk.core.AWS
 import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
+import sbt.{ Command, Project }
 import sbt.Keys.streams
 import scala.collection.JavaConversions._
 
@@ -41,5 +42,16 @@ trait ElasticBeanstalkAPICommands {
       )
       env
     }.toList
+  }
+
+  val ebApiRestartAppServer = Command.single("eb-api-restart-app-server") { (state, envName) =>
+    val extracted = Project.extract(state)
+    val region = extracted.get(eb.ebRegion)
+    state.log.info("Restarting app server for environment named '" + envName + "'.")
+    AWS.elasticBeanstalkClient(region).restartAppServer(
+      new RestartAppServerRequest().withEnvironmentName(envName)
+    )
+    state.log.info("Initiated app server restart for environment named '" + envName + "'.")
+    state
   }
 }

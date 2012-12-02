@@ -11,6 +11,7 @@ trait ElasticBeanstalkSettings {
     ebDeploy <<= ebDeployTask,
     ebRequireJava6 := true,
     ebApiDescribeApplications <<= ebApiDescribeApplicationsTask,
-    ebApiDescribeEnvironments <<= ebApiDescribeEnvironmentsTask
+    ebApiDescribeEnvironments <<= ebApiDescribeEnvironmentsTask,
+    commands ++= Seq(ebApiRestartAppServer)
   )
 }
