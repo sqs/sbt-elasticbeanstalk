@@ -7,7 +7,7 @@ import sbt.Keys.streams
 import scala.collection.JavaConversions._
 
 trait ElasticBeanstalkAPICommands {
-  val ebDescribeApplicationsTask = (eb.ebRegion, streams) map { (ebRegion, s) =>
+  val ebApiDescribeApplicationsTask = (eb.ebRegion, streams) map { (ebRegion, s) =>
     AWS.elasticBeanstalkClient(ebRegion).describeApplications().getApplications.map { app =>
       s.log.info(
         "Application name: " + app.getApplicationName + "\n" +
@@ -24,7 +24,7 @@ trait ElasticBeanstalkAPICommands {
     }.toList
   }
 
-  val ebDescribeEnvironmentsTask = (eb.ebRegion, streams) map { (ebRegion, s) =>
+  val ebApiDescribeEnvironmentsTask = (eb.ebRegion, streams) map { (ebRegion, s) =>
     AWS.elasticBeanstalkClient(ebRegion).describeEnvironments().getEnvironments.map { env =>
       s.log.info(
         "Environment name: " + env.getEnvironmentName + "\n" +

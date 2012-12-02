@@ -17,8 +17,8 @@ object ElasticBeanstalkKeys {
 
   val ebDeploy = TaskKey[Unit]("eb-deploy", "Deploy the application WAR to Elastic Beanstalk")
 
-  val ebDescribeApplications = TaskKey[List[ApplicationDescription]]("eb-describe-applications", "Returns the descriptions of existing applications")
-  val ebDescribeEnvironments = TaskKey[List[EnvironmentDescription]]("eb-describe-environments", "Returns descriptions for existing environments")
+  val ebApiDescribeApplications = TaskKey[List[ApplicationDescription]]("eb-api-describe-applications", "Returns the descriptions of existing applications")
+  val ebApiDescribeEnvironments = TaskKey[List[EnvironmentDescription]]("eb-api-describe-environments", "Returns descriptions for existing environments")
 
   // Debug
   val ebRequireJava6 = SettingKey[Boolean]("eb-require-java6", "Require Java6 to deploy WAR (as of Dec 2012, Java7 is incompatible with EB)")
