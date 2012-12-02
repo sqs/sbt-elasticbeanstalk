@@ -74,14 +74,21 @@ Once you've configured sbt-elasticbeanstalk as described above, run the sbt `eb-
 Features
 --------
 
+**Configuration pull**: Run `eb-config-pull` at the sbt console to download environment configuration into `eb-deploy/<app>/<env>.env.config` files.
+
+**Wait until deployed**: Run `eb-wait` to wait until all project environments are deployed (i.e., Ready status and Green health).
+
 **.ebextensions**: [Play2-war-plugin][play2war]'s `webappResource` sbt key is set to `war` by default, so any directories or files in the `war/` directory will be added to the generated WAR file. The included Play2 sample app has an example `war/.ebextensions` directory that sets some Elastic Beanstalk configuration settings.
 
 **Environment variables**: You can specify an `environmentVariables` map in each `Deployment` that gets passed to your EB environments as environment variables.
+
+**API actions**: Tasks prefixed with `eb-api-` map directly to the corresponding EB API commands. Try `eb-api-describe-applications`, `eb-api-describe-environments`, and `eb-api-restart-app-server <env>`.
 
 
 Changelog
 ---------
 
+* 0.0.4: Add configuration pulling `eb-config-pull`; add `eb-wait` to wait until deployed; add `eb-api-describe-applications`, `eb-api-describe-environments`, and `eb-api-restart-app-server` tasks.
 * 0.0.3: Can set environment variables for each deployment; added Java6 check
 * 0.0.2: Added support for deployment to multiple apps and environments
 * 0.0.1: Initial release
