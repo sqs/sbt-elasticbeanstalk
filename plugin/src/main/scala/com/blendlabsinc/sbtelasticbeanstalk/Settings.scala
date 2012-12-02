@@ -2,7 +2,7 @@ package com.blendlabsinc.sbtelasticbeanstalk
 
 import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
 import sbt.Setting
-import sbt.Keys.commands
+import sbt.Keys.{ baseDirectory, commands }
 
 trait ElasticBeanstalkSettings {
   this: ElasticBeanstalkCommands with ElasticBeanstalkAPICommands =>
@@ -10,6 +10,9 @@ trait ElasticBeanstalkSettings {
   lazy val elasticBeanstalkSettings = Seq[Setting[_]](
     ebDeploy <<= ebDeployTask,
     ebWait <<= ebWaitForEnvironmentsTask,
+    ebDescribeEnvironments <<= ebDescribeEnvironmentsTask,
+    ebConfigPull <<= ebConfigPullTask,
+    ebConfigDirectory <<= baseDirectory / "eb-deploy",
     ebApiDescribeApplications <<= ebApiDescribeApplicationsTask,
     ebApiDescribeEnvironments <<= ebApiDescribeEnvironmentsTask,
     commands ++= Seq(ebApiRestartAppServer),

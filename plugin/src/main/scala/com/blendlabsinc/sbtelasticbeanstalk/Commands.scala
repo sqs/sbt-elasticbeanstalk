@@ -3,9 +3,13 @@ package com.blendlabsinc.sbtelasticbeanstalk
 import com.amazonaws.services.elasticbeanstalk.model._
 import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
 import com.blendlabsinc.sbtelasticbeanstalk.core.{ AWS, Deployer, SourceBundleUploader }
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.play2war.plugin.Play2WarKeys
 import sbt.Keys.streams
+import sbt.Path._
+import sbt.IO
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 trait ElasticBeanstalkCommands {
   val ebDeployTask = (Play2WarKeys.war, eb.ebS3BucketName, eb.ebDeployments, eb.ebRegion, eb.ebRequireJava6, streams) map {
@@ -55,6 +59,18 @@ trait ElasticBeanstalkCommands {
     }
   }
 
+  val ebDescribeEnvironmentsTask = (eb.ebDeployments, eb.ebRegion, streams) map { (ebDeployments, ebRegion, s) =>
+    val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+    val environmentsByAppName = ebDeployments.groupBy(_.appName).mapValues(ds => ds.map(_.environmentName))
+    environmentsByAppName.flatMap { case (appName, envNames) =>
+      ebClient.describeEnvironments(
+        new DescribeEnvironmentsRequest()
+          .withApplicationName(appName)
+          .withEnvironmentNames(envNames)
+      ).getEnvironments
+    }.toList
+  }
+
   val ebWaitForEnvironmentsTask = (eb.ebDeployments, eb.ebRegion, streams) map { (ebDeployments, ebRegion, s) =>
     val ebClient = AWS.elasticBeanstalkClient(ebRegion)
     for (deployment <- ebDeployments) {
@@ -87,5 +103,42 @@ trait ElasticBeanstalkCommands {
       }
     }
     s.log.info("All environments are Ready and Green.")
+  }
+
+  val ebConfigPullTask = (eb.ebDeployments, eb.ebRegion, eb.ebDescribeEnvironments, eb.ebConfigDirectory, streams) map {
+    (ebDeployments, ebRegion, environments, ebConfigDirectory, s) => {
+      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+      environments.flatMap { env =>
+        ebClient.describeConfigurationSettings(
+          new DescribeConfigurationSettingsRequest()
+            .withApplicationName(env.getApplicationName)
+            .withEnvironmentName(env.getEnvironmentName)
+        ).getConfigurationSettings.map { (configDesc: ConfigurationSettingsDescription) =>
+          val file = ebConfigDirectory / configDesc.getApplicationName / (Option(configDesc.getTemplateName) match {
+            case Some(templateName) =>
+              templateName + ".template.config"
+            case None =>
+              configDesc.getEnvironmentName + ".env.config"
+          })
+          val opts = configDesc.getOptionSettings.groupBy(_.getNamespace).mapValues {
+            os => os.map(o => (o.getOptionName -> o.getValue)).toMap.asJava
+          }.asJava
+          IO.write(file, optionSettingsToJson(opts), IO.utf8, false)
+          file
+        }
+      }
+    }.toList
+  }
+
+  private val jsonMapper: ObjectMapper = {
+    import com.fasterxml.jackson.databind.SerializationFeature
+    import com.fasterxml.jackson.core.JsonParser
+    val m = new ObjectMapper()
+    m.enable(SerializationFeature.INDENT_OUTPUT)
+    m.configure(JsonParser.Feature.ALLOW_COMMENTS, true)
+    m
+  }
+  private def optionSettingsToJson(opts: java.util.Map[String,java.util.Map[String,String]]): String = {
+    jsonMapper.writeValueAsString(opts)
   }
 }
