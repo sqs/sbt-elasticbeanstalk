@@ -6,7 +6,7 @@ import com.blendlabsinc.sbtelasticbeanstalk.core.{ AWS, Deployer, SourceBundleUp
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.play2war.plugin.Play2WarKeys
 import java.io.File
-import sbt.Keys.streams
+import sbt.Keys.{ state, streams }
 import sbt.Path._
 import sbt.IO
 import scala.collection.JavaConversions._
@@ -131,6 +131,61 @@ trait ElasticBeanstalkCommands {
     }.toList
   }
 
+  val ebConfigPushTask = (eb.ebLocalConfigChanges, eb.ebLocalConfigValidate, eb.ebRegion, state, streams) map {
+    (localConfigChanges, validatedLocalConfigs, ebRegion, state, s) => {
+      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+      localConfigChanges.flatMap { case (deployment, optionSettings) =>
+        if (!optionSettings.isEmpty) {
+          val optionsToSet = optionSettings.filter(_.getValue != null)
+          val optionsToRemove = optionSettings.filter(_.getValue == null).map { o =>
+            new OptionSpecification().withNamespace(o.getNamespace).withOptionName(o.getOptionName)
+          }
+          s.log.info("Updating config for app " + deployment.appName +
+                     " environment " + deployment.environmentName + "\n" +
+                     " * Setting options: \n\t" + optionsToSet.mkString("\n\t") + "\n" +
+                     " * Removing options: \n\t" + optionsToRemove.mkString("\n\t"))
+          val res = ebClient.updateEnvironment(
+            new UpdateEnvironmentRequest()
+            .withEnvironmentName(deployment.environmentName)
+            .withOptionSettings(optionsToSet)
+            .withOptionsToRemove(optionsToRemove)
+          )
+          s.log.info("Updated config for app " + deployment.appName + " environment " + deployment.environmentName)
+          Some(res)
+        } else {
+          s.log.info("No local config changes for " + deployment.appName + " environment " + deployment.environmentName)
+          None
+        }
+      }.toList
+    }
+  }
+
+  val ebLocalConfigChangesTask = (eb.ebLocalConfig, eb.ebDescribeEnvironments, eb.ebRegion, streams) map {
+    (ebLocalConfigs, environments, ebRegion, s) => {
+      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+      ebLocalConfigs.map { case (deployment, localOptionSettings) =>
+        val remoteEnvOpt = environments.find(
+          e => e.getApplicationName == deployment.appName && e.getEnvironmentName == deployment.environmentName
+        )
+        remoteEnvOpt match {
+          case Some(envDesc) => {
+            val remoteOptionSettings = ebClient.describeConfigurationSettings(
+              new DescribeConfigurationSettingsRequest()
+              .withApplicationName(envDesc.getApplicationName)
+              .withEnvironmentName(envDesc.getEnvironmentName)
+            ).getConfigurationSettings.flatMap(_.getOptionSettings).toSet
+            // TODO: handle options that were deleted locally (put them in optionsToRemove)
+            val locallyAddedSettings = (localOptionSettings -- remoteOptionSettings)
+            val locallyRemovedSettings = (remoteOptionSettings -- localOptionSettings).map(_.withValue(null))
+            deployment -> (locallyAddedSettings ++ locallyRemovedSettings)
+          }
+          case None => {
+            deployment -> localOptionSettings.toSet
+          }
+        }
+      }
+    }
+  }
 
   val ebLocalConfigReadTask = (eb.ebDeployments, eb.ebRegion, eb.ebConfigDirectory, streams) map {
     (ebDeployments, ebRegion, ebConfigDirectory, s) => {
@@ -163,6 +218,42 @@ trait ElasticBeanstalkCommands {
       }.toMap
     }
   }
+
+  val ebLocalConfigValidateTask = (eb.ebLocalConfigChanges, eb.ebRegion, streams) map {
+    (ebLocalConfigChanges, ebRegion, s) => {
+      var validationFailed = false
+      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+      val validatedChanges = ebLocalConfigChanges.map { case (deployment, optionSettings) =>
+        deployment -> {
+          val validationMessages = ebClient.validateConfigurationSettings(
+            new ValidateConfigurationSettingsRequest()
+              .withApplicationName(deployment.appName)
+              .withEnvironmentName(deployment.environmentName)
+              .withOptionSettings(optionSettings.filter(_.getValue != null)) // ok to filter out null here?
+          ).getMessages
+          validationMessages.foreach { msg =>
+            val logFn = ValidationSeverity.valueOf(Map("error"->"Error", "warning"->"Warning")(msg.getSeverity)) match {
+              case ValidationSeverity.Error => {
+                validationFailed = true
+                s.log.error (_: String)
+              }
+              case ValidationSeverity.Warning => s.log.warn (_: String)
+            }
+            logFn("For deployment " + deployment.appName + "/" + deployment.environmentName + ": " +
+                  msg.getNamespace + ":" + msg.getOptionName + ": " +
+                  msg.getMessage + " (" + msg.getSeverity + ")")
+          }
+          optionSettings
+        }
+      }.toMap
+      if (validationFailed) {
+        throw new Exception("Local configuration failed to validate. See messages above.")        
+      } else {
+        validatedChanges
+      }
+    }
+  }
+
   private val jsonMapper: ObjectMapper = {
     import com.fasterxml.jackson.databind.SerializationFeature
     import com.fasterxml.jackson.core.JsonParser

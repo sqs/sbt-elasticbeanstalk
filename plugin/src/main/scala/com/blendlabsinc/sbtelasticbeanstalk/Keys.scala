@@ -23,7 +23,10 @@ object ElasticBeanstalkKeys {
 
   val ebConfigDirectory = SettingKey[File]("eb-config-directory", "Where EB configs are pulled to and pushed from")
   val ebConfigPull = TaskKey[List[File]]("eb-config-pull", "Downloads existing configurations for all project environments") // TODO: also pull app configs and templates
+  val ebConfigPush = TaskKey[List[UpdateEnvironmentResult]]("eb-config-push", "Updates configurations for all project environments using local configs (that were pulled with eb-config-pull)") // TODO: also push app configs and templates
   val ebLocalConfig = TaskKey[Map[Deployment,Set[ConfigurationOptionSetting]]]("eb-local-config", "Reads local configurations for all project environments")
+  val ebLocalConfigChanges = TaskKey[Map[Deployment,Set[ConfigurationOptionSetting]]]("eb-local-config-changes", "Changes to local configs that are not reflected in remote configs")
+  val ebLocalConfigValidate = TaskKey[Map[Deployment,Set[ConfigurationOptionSetting]]]("eb-local-config-validate", "Validates local configurations for all project environments") // TODO: also validate app configs and templates
 
   val ebApiDescribeApplications = TaskKey[List[ApplicationDescription]]("eb-api-describe-applications", "Returns the descriptions of existing applications")
   val ebApiDescribeEnvironments = TaskKey[List[EnvironmentDescription]]("eb-api-describe-environments", "Returns descriptions for existing environments")
