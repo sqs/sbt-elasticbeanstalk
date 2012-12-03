@@ -96,9 +96,8 @@ trait ElasticBeanstalkCommands {
           "and deploy WARs. You can also set ebRequireJava6 := false in " +
           "your sbt settings to suppress this warning, but beware that Java7-compiled WARs " +
           "currently fail in strange ways on Elastic Beanstalk."
-        )                    
+        )
       }
-
 
       s.log.info("Uploading " + war.getName + " (" + (war.length/1024/1024) + " MB) " +
                  "to Amazon S3 bucket '" + s3BucketName + "'")
