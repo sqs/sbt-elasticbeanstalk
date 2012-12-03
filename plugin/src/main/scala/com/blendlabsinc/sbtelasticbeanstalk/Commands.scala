@@ -134,21 +134,19 @@ trait ElasticBeanstalkCommands {
   val ebConfigPushTask = (eb.ebLocalConfigChanges, eb.ebLocalConfigValidate, eb.ebRegion, state, streams) map {
     (localConfigChanges, validatedLocalConfigs, ebRegion, state, s) => {
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
-      localConfigChanges.flatMap { case (deployment, optionSettings) =>
-        if (!optionSettings.isEmpty) {
-          val optionsToSet = optionSettings.filter(_.getValue != null)
-          val optionsToRemove = optionSettings.filter(_.getValue == null).map { o =>
-            new OptionSpecification().withNamespace(o.getNamespace).withOptionName(o.getOptionName)
-          }
+      localConfigChanges.flatMap { case (deployment, changes) =>
+        if (!changes.optionsToSetAfterCreatingNewEnvironment.isEmpty) {
+          throw new Exception("Creating a new environment is not yet implemented")
+        } else if (!changes.optionsToSet.isEmpty || !changes.optionsToRemove.isEmpty) {
           s.log.info("Updating config for app " + deployment.appName +
                      " environment " + deployment.environmentName + "\n" +
-                     " * Setting options: \n\t" + optionsToSet.mkString("\n\t") + "\n" +
-                     " * Removing options: \n\t" + optionsToRemove.mkString("\n\t"))
+                     " * Setting options: \n\t" + changes.optionsToSet.mkString("\n\t") + "\n" +
+                     " * Removing options: \n\t" + changes.optionsToRemove.mkString("\n\t"))
           val res = ebClient.updateEnvironment(
             new UpdateEnvironmentRequest()
             .withEnvironmentName(deployment.environmentName)
-            .withOptionSettings(optionsToSet)
-            .withOptionsToRemove(optionsToRemove)
+            .withOptionSettings(changes.optionsToSet)
+            .withOptionsToRemove(changes.optionsToRemove)
           )
           s.log.info("Updated config for app " + deployment.appName + " environment " + deployment.environmentName)
           Some(res)
@@ -169,18 +167,21 @@ trait ElasticBeanstalkCommands {
         )
         remoteEnvOpt match {
           case Some(envDesc) => {
-            val remoteOptionSettings = ebClient.describeConfigurationSettings(
+            val remoteOptionSettings: Set[ConfigurationOptionSetting] = ebClient.describeConfigurationSettings(
               new DescribeConfigurationSettingsRequest()
               .withApplicationName(envDesc.getApplicationName)
               .withEnvironmentName(envDesc.getEnvironmentName)
             ).getConfigurationSettings.flatMap(_.getOptionSettings).toSet
-            // TODO: handle options that were deleted locally (put them in optionsToRemove)
             val locallyAddedSettings = (localOptionSettings -- remoteOptionSettings)
-            val locallyRemovedSettings = (remoteOptionSettings -- localOptionSettings).map(_.withValue(null))
-            deployment -> (locallyAddedSettings ++ locallyRemovedSettings)
+            val locallyRemovedSettings = remoteOptionSettings.filterNot { ro => // filter out options that exist locally
+              localOptionSettings.find(lo => lo.getNamespace == ro.getNamespace && lo.getOptionName == ro.getOptionName).isDefined
+            }.map { o =>
+              new OptionSpecification().withNamespace(o.getNamespace).withOptionName(o.getOptionName)
+            }
+            deployment -> ConfigurationChanges(locallyAddedSettings, locallyRemovedSettings)
           }
           case None => {
-            deployment -> localOptionSettings.toSet
+            deployment -> ConfigurationChanges(optionsToSetAfterCreatingNewEnvironment = localOptionSettings.toSet)
           }
         }
       }
@@ -199,12 +200,8 @@ trait ElasticBeanstalkCommands {
             Some(
               deployment ->
               settingsMap.flatMap { case (namespace, options) =>
-                options.flatMap { case (optionName, value) =>
-                  if (value != null) {
-                    Some(new ConfigurationOptionSetting(namespace, optionName, value))
-                  } else {
-                    None
-                  }
+                options.map { case (optionName, value) =>
+                  new ConfigurationOptionSetting(namespace, optionName, value)
                 }
               }.toSet
             )
@@ -223,13 +220,13 @@ trait ElasticBeanstalkCommands {
     (ebLocalConfigChanges, ebRegion, s) => {
       var validationFailed = false
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
-      val validatedChanges = ebLocalConfigChanges.map { case (deployment, optionSettings) =>
+      val validatedChanges = ebLocalConfigChanges.map { case (deployment, configChanges) =>
         deployment -> {
           val validationMessages = ebClient.validateConfigurationSettings(
             new ValidateConfigurationSettingsRequest()
               .withApplicationName(deployment.appName)
               .withEnvironmentName(deployment.environmentName)
-              .withOptionSettings(optionSettings.filter(_.getValue != null)) // ok to filter out null here?
+              .withOptionSettings(configChanges.optionsToSet)
           ).getMessages
           validationMessages.foreach { msg =>
             val logFn = ValidationSeverity.valueOf(Map("error"->"Error", "warning"->"Warning")(msg.getSeverity)) match {
@@ -243,7 +240,7 @@ trait ElasticBeanstalkCommands {
                   msg.getNamespace + ":" + msg.getOptionName + ": " +
                   msg.getMessage + " (" + msg.getSeverity + ")")
           }
-          optionSettings
+          configChanges
         }
       }.toMap
       if (validationFailed) {
