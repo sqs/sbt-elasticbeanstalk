@@ -8,4 +8,4 @@ resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver
 
 addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9a-SNAPSHOT")
 
-addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk-plugin" % "0.0.4-SNAPSHOT")
+addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk-plugin" % "0.0.5-SNAPSHOT")
