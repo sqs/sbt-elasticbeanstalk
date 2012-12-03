@@ -11,6 +11,7 @@ trait ElasticBeanstalkSettings {
     ebDeploy <<= ebDeployTask,
     ebWait <<= ebWaitForEnvironmentsTask,
     ebDescribeEnvironments <<= ebDescribeEnvironmentsTask,
+    ebUploadSourceBundle <<= ebUploadSourceBundleTask,
     ebConfigPull <<= ebConfigPullTask,
     ebConfigPush <<= ebConfigPushTask,
     ebLocalConfig <<= ebLocalConfigReadTask,

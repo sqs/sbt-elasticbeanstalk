@@ -27,6 +27,8 @@ object ElasticBeanstalkKeys {
 
   val ebDescribeEnvironments = TaskKey[List[EnvironmentDescription]]("eb-describe-environments", "Describes all project environments")
 
+  val ebUploadSourceBundle = TaskKey[S3Location]("eb-upload-source-bundle", "Uploads the WAR source bundle to S3")
+
   val ebConfigDirectory = SettingKey[File]("eb-config-directory", "Where EB configs are pulled to and pushed from")
   val ebConfigPull = TaskKey[List[File]]("eb-config-pull", "Downloads existing configurations for all project environments") // TODO: also pull app configs and templates
   val ebConfigPush = TaskKey[List[UpdateEnvironmentResult]]("eb-config-push", "Updates configurations for all project environments using local configs (that were pulled with eb-config-pull)") // TODO: also push app configs and templates
