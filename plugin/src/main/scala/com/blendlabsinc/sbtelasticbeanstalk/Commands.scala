@@ -5,6 +5,7 @@ import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
 import com.blendlabsinc.sbtelasticbeanstalk.core.{ AWS, Deployer, SourceBundleUploader }
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.play2war.plugin.Play2WarKeys
+import java.io.File
 import sbt.Keys.streams
 import sbt.Path._
 import sbt.IO
@@ -130,6 +131,38 @@ trait ElasticBeanstalkCommands {
     }.toList
   }
 
+
+  val ebLocalConfigReadTask = (eb.ebDeployments, eb.ebRegion, eb.ebConfigDirectory, streams) map {
+    (ebDeployments, ebRegion, ebConfigDirectory, s) => {
+      ebDeployments.flatMap { deployment =>
+        val envConfig = ebConfigDirectory / deployment.appName / (deployment.environmentName + ".env.config")
+        envConfig.exists match {
+          case true => {
+            val settingsMap = jsonToOptionSettingsMap(envConfig)
+            s.log.info("Using local config for deployment " + deployment.toString +
+                       " at path " + envConfig.getAbsolutePath)
+            Some(
+              deployment ->
+              settingsMap.flatMap { case (namespace, options) =>
+                options.flatMap { case (optionName, value) =>
+                  if (value != null) {
+                    Some(new ConfigurationOptionSetting(namespace, optionName, value))
+                  } else {
+                    None
+                  }
+                }
+              }.toSet
+            )
+          }
+          case false => {
+            s.log.warn("No local config found for deployment " + deployment.toString +
+                       " at path " + envConfig.getAbsolutePath)
+            None
+          }
+        }
+      }.toMap
+    }
+  }
   private val jsonMapper: ObjectMapper = {
     import com.fasterxml.jackson.databind.SerializationFeature
     import com.fasterxml.jackson.core.JsonParser
@@ -137,6 +170,9 @@ trait ElasticBeanstalkCommands {
     m.enable(SerializationFeature.INDENT_OUTPUT)
     m.configure(JsonParser.Feature.ALLOW_COMMENTS, true)
     m
+  }
+  private def jsonToOptionSettingsMap(jsonFile: File): java.util.HashMap[String,java.util.HashMap[String,String]] = {
+    jsonMapper.readValue(jsonFile, classOf[java.util.HashMap[String,java.util.HashMap[String,String]]])
   }
   private def optionSettingsToJson(opts: java.util.Map[String,java.util.Map[String,String]]): String = {
     jsonMapper.writeValueAsString(opts)
