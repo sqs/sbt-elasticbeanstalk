@@ -41,7 +41,7 @@ val main = play.Project(appName, appVersion, appDependencies).settings(
   ebDeployments := Seq(
     Deployment(
       appName = "some-app-name",
-      environmentName = "some-environment-name",
+      envNamePrefix = "some-environment-name",
       environmentVariables = Map("MyFavoriteColor" -> "blue")
     )
   ),

@@ -6,7 +6,7 @@ import sbt.{ SettingKey, TaskKey }
 
 case class Deployment(
   appName: String,
-  environmentName: String,
+  envNamePrefix: String,
   environmentVariables: Map[String, String] = Map()
 )
 
