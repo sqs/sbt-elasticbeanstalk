@@ -7,8 +7,13 @@ import sbt.{ SettingKey, TaskKey }
 case class Deployment(
   appName: String,
   envNamePrefix: String,
+  scheme: DeploymentScheme = ReplaceExistingEnvironment(),
   environmentVariables: Map[String, String] = Map()
 )
+
+trait DeploymentScheme
+case class ReplaceExistingEnvironment() extends DeploymentScheme
+case class CreateNewEnvironmentAndSwap(cname: String) extends DeploymentScheme
 
 case class ConfigurationChanges(
   optionsToSet: Set[ConfigurationOptionSetting] = Set(),
@@ -20,12 +25,16 @@ object ElasticBeanstalkKeys {
   val ebS3BucketName = SettingKey[String]("ebS3BucketName", "S3 bucket which should contain uploaded WAR files")
   val ebDeployments = SettingKey[Seq[Deployment]]("eb-deployments", "List of Elastic Beanstalk deployment targets")
 
+  val ebEnvironmentNameSuffix = SettingKey[Function0[String]]("eb-environment-name-suffix", "Function that returns a string suffix for environment names")
+
   val ebRegion = SettingKey[String]("ebRegion", "Elastic Beanstalk region (e.g., us-west-1)")
 
   val ebDeploy = TaskKey[Unit]("eb-deploy", "Deploy the application WAR to Elastic Beanstalk")
   val ebWait = TaskKey[Unit]("eb-wait", "Wait for all project environments to be Ready and Green")
 
-  val ebDescribeEnvironments = TaskKey[List[EnvironmentDescription]]("eb-describe-environments", "Describes all project environments")
+  val ebParentEnvironments = TaskKey[Map[Deployment,Option[EnvironmentDescription]]]("eb-parent-environments", "Returns existing environments corresponding to all project environments. If a project environment has a CNAME set, then it attempts to find the existing environment with that CNAME. If no CNAME is set, it finds the existing environment with the same environment name.")
+
+  val ebExistingEnvironments = TaskKey[List[EnvironmentDescription]]("eb-existing-environments", "Describes all existing project environments (i.e., that are on Elastic Beanstalk)")
 
   val ebUploadSourceBundle = TaskKey[S3Location]("eb-upload-source-bundle", "Uploads the WAR source bundle to S3")
 

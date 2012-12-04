@@ -8,9 +8,14 @@ trait ElasticBeanstalkSettings {
   this: ElasticBeanstalkCommands with ElasticBeanstalkAPICommands =>
 
   lazy val elasticBeanstalkSettings = Seq[Setting[_]](
+    ebEnvironmentNameSuffix := { () =>
+      val dateFormatter = new java.text.SimpleDateFormat("yyyyMMddHHmmssZ")
+      dateFormatter.format(new java.util.Date) + System.getenv("USER").take(4) // TODO: ensure UTC
+    },
     ebDeploy <<= ebDeployTask,
     ebWait <<= ebWaitForEnvironmentsTask,
-    ebDescribeEnvironments <<= ebDescribeEnvironmentsTask,
+    ebParentEnvironments <<= ebParentEnvironmentsTask,
+    ebExistingEnvironments <<= ebExistingEnvironmentsTask,
     ebUploadSourceBundle <<= ebUploadSourceBundleTask,
     ebConfigPull <<= ebConfigPullTask,
     ebConfigPush <<= ebConfigPushTask,

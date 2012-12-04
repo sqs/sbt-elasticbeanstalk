@@ -1,5 +1,6 @@
 package com.blendlabsinc.sbtelasticbeanstalk
 
+import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
 import com.amazonaws.services.elasticbeanstalk.model._
 import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
 import com.blendlabsinc.sbtelasticbeanstalk.core.{ AWS, Deployer, SourceBundleUploader }
@@ -40,7 +41,7 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebDescribeEnvironmentsTask = (eb.ebDeployments, eb.ebRegion, streams) map { (ebDeployments, ebRegion, s) =>
+  val ebExistingEnvironmentsTask = (eb.ebDeployments, eb.ebRegion, streams) map { (ebDeployments, ebRegion, s) =>
     val ebClient = AWS.elasticBeanstalkClient(ebRegion)
     val environmentsByAppName = ebDeployments.groupBy(_.appName).mapValues(ds => ds.map(_.envNamePrefix))
     environmentsByAppName.flatMap { case (appName, envNames) =>
@@ -86,6 +87,22 @@ trait ElasticBeanstalkCommands {
     s.log.info("All environments are Ready and Green.")
   }
 
+  val ebParentEnvironmentsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebRegion, streams) map {
+    (ebDeployments, existingEnvs, ebRegion, s) => {
+      ebDeployments.map { d =>
+        d -> {
+          d.scheme match {
+            case CreateNewEnvironmentAndSwap(cname) =>
+              existingEnvs.find(ee => ee.getCNAME == cname)
+
+            case ReplaceExistingEnvironment() =>
+              existingEnvs.find(ee => ee.getApplicationName == d.appName && ee.getEnvironmentName == d.envNamePrefix)
+          }
+        }
+      }.toMap
+    }
+  }
+
   val ebUploadSourceBundleTask = (Play2WarKeys.war, eb.ebS3BucketName, eb.ebRegion, eb.ebRequireJava6, streams) map {
     (war, s3BucketName, ebRegion, ebRequireJava6, s) => {
       if (ebRequireJava6 && System.getProperty("java.specification.version") != "1.6") {
@@ -108,21 +125,32 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebConfigPullTask = (eb.ebDeployments, eb.ebRegion, eb.ebDescribeEnvironments, eb.ebConfigDirectory, streams) map {
-    (ebDeployments, ebRegion, environments, ebConfigDirectory, s) => {
+  private def getEnvironmentConfigurationSettingsDescription(ebClient: AWSElasticBeanstalkClient, env: EnvironmentDescription): List[ConfigurationSettingsDescription] =
+    ebClient.describeConfigurationSettings(
+      new DescribeConfigurationSettingsRequest()
+      .withApplicationName(env.getApplicationName)
+      .withEnvironmentName(env.getEnvironmentName)
+    ).getConfigurationSettings.toList
+
+  /**
+   * Filter out deployments that don't exist on EB already, since they have no config to pull anyway.
+   */
+  private def existingParentEnvs(parentEnvs: Map[Deployment,Option[EnvironmentDescription]]): Map[Deployment,EnvironmentDescription] =
+    parentEnvs.flatMap { case (d, envOpt) =>
+      envOpt.map(eo => Some(d -> eo)).getOrElse(None)
+    }.toMap
+
+  val ebConfigPullTask = (eb.ebDeployments, eb.ebRegion, eb.ebParentEnvironments, eb.ebConfigDirectory, streams) map {
+    (ebDeployments, ebRegion, parentEnvs, ebConfigDirectory, s) => {
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
-      environments.flatMap { env =>
-        ebClient.describeConfigurationSettings(
-          new DescribeConfigurationSettingsRequest()
-            .withApplicationName(env.getApplicationName)
-            .withEnvironmentName(env.getEnvironmentName)
-        ).getConfigurationSettings.map { (configDesc: ConfigurationSettingsDescription) =>
-          val file = ebConfigDirectory / configDesc.getApplicationName / (Option(configDesc.getTemplateName) match {
-            case Some(templateName) =>
-              templateName + ".template.config"
-            case None =>
-              configDesc.getEnvironmentName + ".env.config"
-          })
+      existingParentEnvs(parentEnvs).flatMap { case (deployment, parentEnv) =>
+        getEnvironmentConfigurationSettingsDescription(ebClient, parentEnv).map { configDesc =>
+          val baseName = if (configDesc.getTemplateName != null) {
+            configDesc.getTemplateName + ".template.config"
+          } else {
+            configDesc.getEnvironmentName + ".env.config"
+          }
+          val file = ebConfigDirectory / configDesc.getApplicationName / baseName
           val opts = configDesc.getOptionSettings.groupBy(_.getNamespace).mapValues {
             os => os.map(o => (o.getOptionName -> o.getValue)).toMap.asJava
           }.asJava
@@ -160,13 +188,11 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebLocalConfigChangesTask = (eb.ebLocalConfig, eb.ebDescribeEnvironments, eb.ebRegion, streams) map {
-    (ebLocalConfigs, environments, ebRegion, s) => {
+  val ebLocalConfigChangesTask = (eb.ebLocalConfig, eb.ebParentEnvironments, eb.ebRegion, streams) map {
+    (ebLocalConfigs, parentEnvs, ebRegion, s) => {
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
       ebLocalConfigs.map { case (deployment, localOptionSettings) =>
-        val remoteEnvOpt = environments.find(
-          e => e.getApplicationName == deployment.appName && e.getEnvironmentName == deployment.envNamePrefix
-        )
+        val remoteEnvOpt = parentEnvs(deployment)
         remoteEnvOpt match {
           case Some(envDesc) => {
             val remoteOptionSettings: Set[ConfigurationOptionSetting] = ebClient.describeConfigurationSettings(
