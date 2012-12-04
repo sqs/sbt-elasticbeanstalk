@@ -1,20 +1,25 @@
 package com.blendlabsinc.sbtelasticbeanstalk
 
 import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
-import sbt.Setting
+import sbt.{ Setting, Hash }
 import sbt.Keys.{ baseDirectory, commands }
 
 trait ElasticBeanstalkSettings {
   this: ElasticBeanstalkCommands with ElasticBeanstalkAPICommands =>
 
+  val sessionId = new java.math.BigInteger(130, new java.security.SecureRandom()).toString(32) // HACK TODO
   lazy val elasticBeanstalkSettings = Seq[Setting[_]](
-    ebEnvironmentNameSuffix := { () =>
-      val dateFormatter = new java.text.SimpleDateFormat("yyyyMMddHHmmssZ")
-      dateFormatter.format(new java.util.Date) + System.getenv("USER").take(4) // TODO: ensure UTC
+    ebEnvironmentNameSuffix := { (name) =>
+      val maxLen = 23
+      val uniq = sessionId
+      if (name.length > (23 - 7)) throw new Exception("environment name too long: " + name)
+      name + "-" + System.getenv("USER").take(3) + uniq.take(3)
     },
     ebDeploy <<= ebDeployTask,
+    ebSetUpEnvForAppVersion <<= ebSetUpEnvForAppVersionTask,
     ebWait <<= ebWaitForEnvironmentsTask,
     ebParentEnvironments <<= ebParentEnvironmentsTask,
+    ebTargetEnvironments <<= ebTargetEnvironmentsTask,
     ebExistingEnvironments <<= ebExistingEnvironmentsTask,
     ebUploadSourceBundle <<= ebUploadSourceBundleTask,
     ebConfigPull <<= ebConfigPullTask,
