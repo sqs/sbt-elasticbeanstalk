@@ -140,6 +140,8 @@ trait ElasticBeanstalkCommands {
           .withApplicationName(appName)
       ).getEnvironments.filter { e =>
         envBaseNames.count(e.getEnvironmentName.startsWith(_)) > 0
+      }.filter { e =>
+        EnvironmentStatus.valueOf(e.getStatus) == EnvironmentStatus.Ready
       }
     }.toList
   }
