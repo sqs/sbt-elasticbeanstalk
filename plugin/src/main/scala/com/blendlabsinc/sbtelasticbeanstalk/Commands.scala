@@ -27,12 +27,20 @@ trait ElasticBeanstalkCommands {
           "  Region: " + ebRegion + "\n" +
           "  Environment vars: " + deployment.environmentVariables.toString + "\n\n"
         )
-        val d = new Deployer(
-          deployment.appName,
-          deployment.envNamePrefix,
-          AWS.elasticBeanstalkClient(ebRegion)
-        )
-        val res = d.deploy(versionLabel, sourceBundle, deployment.environmentVariables)
+
+        val res = deployment.scheme match {
+          case ReplaceExistingEnvironment() => {
+            val d = new Deployer(
+              deployment.appName,
+              deployment.envNamePrefix,
+              AWS.elasticBeanstalkClient(ebRegion)
+            )
+            d.deploy(versionLabel, sourceBundle, deployment.environmentVariables)
+          }
+          case CreateNewEnvironmentAndSwap(cname) => {
+            throw new Exception("eb-deploy CreateNewEnvironmentAndSwap not yet implemented")
+          }
+        }
 
         s.log.info("Elastic Beanstalk deployment complete.\n" +
                    "URL: http://" + res.getCNAME() + "\n" +
@@ -172,12 +180,19 @@ trait ElasticBeanstalkCommands {
                      " environment " + deployment.envNamePrefix + "\n" +
                      " * Setting options: \n\t" + changes.optionsToSet.mkString("\n\t") + "\n" +
                      " * Removing options: \n\t" + changes.optionsToRemove.mkString("\n\t"))
-          val res = ebClient.updateEnvironment(
-            new UpdateEnvironmentRequest()
-            .withEnvironmentName(deployment.envNamePrefix)
-            .withOptionSettings(changes.optionsToSet)
-            .withOptionsToRemove(changes.optionsToRemove)
-          )
+          val res = deployment.scheme match {
+            case ReplaceExistingEnvironment() => {
+              ebClient.updateEnvironment(
+                new UpdateEnvironmentRequest()
+                .withEnvironmentName(deployment.envNamePrefix)
+                .withOptionSettings(changes.optionsToSet)
+                .withOptionsToRemove(changes.optionsToRemove)
+              )
+            }
+            case CreateNewEnvironmentAndSwap(cname) => {
+              throw new Exception("eb-config-push CreateNewEnvironmentAndSwap not yet implemented")
+            }
+          }
           s.log.info("Updated config for app " + deployment.appName + " environment " + deployment.envNamePrefix)
           Some(res)
         } else {
