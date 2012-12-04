@@ -16,6 +16,7 @@ import scala.collection.JavaConverters._
 trait ElasticBeanstalkCommands {
   val ebDeployTask = (eb.ebSetUpEnvForAppVersion, eb.ebRegion, eb.ebParentEnvironments, state, streams) map {
     (setUpEnvs, ebRegion, parentEnvs, state, s) => {
+      java.lang.Thread.sleep(2000)
       Project.runTask(eb.ebWait, state)
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
       setUpEnvs.map { case (deployment, setUpEnv) =>
