@@ -16,7 +16,7 @@ import scala.collection.JavaConverters._
 trait ElasticBeanstalkCommands {
   val ebDeployTask = (eb.ebSetUpEnvForAppVersion, eb.ebRegion, eb.ebParentEnvironments, state, streams) map {
     (setUpEnvs, ebRegion, parentEnvs, state, s) => {
-      java.lang.Thread.sleep(2000)
+      java.lang.Thread.sleep(5000)
       Project.runTask(eb.ebWait, state)
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
       setUpEnvs.map { case (deployment, setUpEnv) =>
@@ -176,13 +176,13 @@ trait ElasticBeanstalkCommands {
                     "Status: " + envDesc.getStatus + "   " +
                     "Health: " + envDesc.getHealth + "   " +
                     "(" + elapsedSec + "s)")
-              java.lang.Thread.sleep(4000)
+              java.lang.Thread.sleep(5000)
             }
           }
           case None => {
             s.log.warn("Environment " + deployment.appName + "/" + targetEnv.getEnvironmentName + " " +
                        "not found. Trying again after a delay...")
-            java.lang.Thread.sleep(2500)
+            java.lang.Thread.sleep(5000)
           }
         }
         if (elapsedSec > (20*60)) { // 20 minutes
