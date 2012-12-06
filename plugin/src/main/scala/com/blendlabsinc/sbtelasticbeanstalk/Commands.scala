@@ -176,13 +176,13 @@ trait ElasticBeanstalkCommands {
                     "Status: " + envDesc.getStatus + "   " +
                     "Health: " + envDesc.getHealth + "   " +
                     "(" + elapsedSec + "s)")
-              java.lang.Thread.sleep(5000)
+              java.lang.Thread.sleep(10000)
             }
           }
           case None => {
             s.log.warn("Environment " + deployment.appName + "/" + targetEnv.getEnvironmentName + " " +
                        "not found. Trying again after a delay...")
-            java.lang.Thread.sleep(5000)
+            java.lang.Thread.sleep(10000)
           }
         }
         if (elapsedSec > (20*60)) { // 20 minutes
