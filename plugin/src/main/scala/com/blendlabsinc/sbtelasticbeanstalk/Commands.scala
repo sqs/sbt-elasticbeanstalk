@@ -158,7 +158,7 @@ trait ElasticBeanstalkCommands {
             val isThisDeployment = e.getEnvironmentName.startsWith(d.envBaseName)
             val isNotActiveCNAME = e.getCNAME != cname
             val ageMsec = System.currentTimeMillis - e.getDateUpdated.getTime
-            isThisDeployment && isNotActiveCNAME && (ageMsec > ageToTerminate*0+1)
+            isThisDeployment && isNotActiveCNAME && (ageMsec > ageToTerminate)
           }
         }
 
