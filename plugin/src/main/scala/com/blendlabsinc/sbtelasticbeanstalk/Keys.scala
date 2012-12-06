@@ -40,6 +40,8 @@ object ElasticBeanstalkKeys {
 
   val ebExistingEnvironments = TaskKey[List[EnvironmentDescription]]("eb-existing-environments", "Describes all existing project environments (i.e., that are on Elastic Beanstalk)")
 
+  val ebCleanEnvironments = TaskKey[Unit]("eb-clean", "Terminates all old and unused environments")
+
   val ebUploadSourceBundle = TaskKey[S3Location]("eb-upload-source-bundle", "Uploads the WAR source bundle to S3")
 
   val ebConfigDirectory = SettingKey[File]("eb-config-directory", "Where EB configs are pulled to and pushed from")

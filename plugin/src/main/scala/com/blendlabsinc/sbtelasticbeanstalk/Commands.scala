@@ -146,6 +146,41 @@ trait ElasticBeanstalkCommands {
     }.toList
   }
 
+  val ageToTerminate = 1000*60*45 // msec (45 minutes)
+  val ebCleanEnvironmentsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebRegion, streams) map {
+    (deployments, existingEnvs, ebRegion, s) => {
+      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+      val envsToClean = deployments.flatMap { d => d.scheme match {
+        case CreateNewEnvironmentAndSwap(cname) => {
+          existingEnvs.filter { e =>
+            def trimName(cname: String) = cname.replace(".elasticbeanstalk.com", "")
+            // The trailing dash means that this is NOT the currently active environment for the CNAME.
+            val isThisDeployment = e.getEnvironmentName.startsWith(d.envBaseName)
+            val isNotActiveCNAME = e.getCNAME != cname
+            val ageMsec = System.currentTimeMillis - e.getDateUpdated.getTime
+            isThisDeployment && isNotActiveCNAME && (ageMsec > ageToTerminate*0+1)
+          }
+        }
+
+        case ReplaceExistingEnvironment() => Nil
+      }}
+      s.log.info("Going to terminate the following environments: \n\t" + envsToClean.mkString("\n\t"))
+      if (envsToClean.isEmpty) s.log.info("  (no environments found eligible for cleaning/termination)")
+      if (System.getProperty("sbt.elasticbeanstalk.dryrun") != "false") {
+        throw new Exception("`eb-clean` does not actually terminate environments unless you specify " +
+                            "the following option: -Dsbt.elasticbeanstalk.dryrun=false.")
+      }
+      envsToClean.foreach { env =>
+        ebClient.terminateEnvironment(
+          new TerminateEnvironmentRequest()
+          .withEnvironmentName(env.getEnvironmentName)
+          .withTerminateResources(true)
+        )
+        s.log.info("Terminated environment " + env.getEnvironmentName + ".")
+      }
+    }
+  }
+
   val ebWaitForEnvironmentsTask = (eb.ebTargetEnvironments, eb.ebRegion, streams) map { (targetEnvs, ebRegion, s) =>
     val ebClient = AWS.elasticBeanstalkClient(ebRegion)
     targetEnvs.foreach { case (deployment, targetEnv) =>
