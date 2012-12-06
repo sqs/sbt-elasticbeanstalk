@@ -25,10 +25,17 @@ class SourceBundleUploader(
     var upload: Upload = null
 
     val progressListener = new ProgressListener() {
+      private def printProgress(s: String) {
+        val show = System.getProperty("sbt.elasticbeanstalk.showprogressbar")
+        if (show == null || show == "true") {
+          print(s)
+        }
+      }
+
       def progressChanged(event: ProgressEvent) {
         val progress = upload.getProgress
         def bytesToMB(bytes: Long): Double = (bytes.toDouble / 1024 / 1024)
-        print("\rTransferred: %.1f/%.1f MB (%.1f%%)".format(
+        printProgress("\rTransferred: %.1f/%.1f MB (%.1f%%)".format(
           bytesToMB(progress.getBytesTransfered),
           bytesToMB(progress.getTotalBytesToTransfer),
           progress.getPercentTransfered
@@ -36,7 +43,7 @@ class SourceBundleUploader(
 
         val code = event.getEventCode
         if (code == ProgressEvent.COMPLETED_EVENT_CODE || code == ProgressEvent.FAILED_EVENT_CODE) {
-          print("\n")
+          printProgress("\n")
         }
       }
     }
