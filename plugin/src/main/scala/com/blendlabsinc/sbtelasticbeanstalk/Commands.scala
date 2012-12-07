@@ -261,22 +261,35 @@ trait ElasticBeanstalkCommands {
       envOpt.map(eo => Some(d -> eo)).getOrElse(None)
     }.toMap
 
-  val ebConfigPullTask = (eb.ebDeployments, eb.ebClient, eb.ebParentEnvironments, eb.ebConfigDirectory, streams) map {
-    (ebDeployments, ebClient, parentEnvs, ebConfigDirectory, s) => {
-      existingParentEnvs(parentEnvs).flatMap { case (deployment, parentEnv) =>
-        getEnvironmentConfigurationSettingsDescription(ebClient, parentEnv).map { configDesc =>
-          val baseName = if (configDesc.getTemplateName != null) {
-            configDesc.getTemplateName + ".template.config"
-          } else {
-            configDesc.getEnvironmentName + ".env.config"
-          }
-          val file = ebConfigDirectory / configDesc.getApplicationName / baseName
-          val opts = configDesc.getOptionSettings.groupBy(_.getNamespace).mapValues {
-            os => os.map(o => (o.getOptionName -> o.getValue)).toMap.asJava
-          }.asJava
-          IO.write(file, optionSettingsToJson(opts), IO.utf8, false)
-          file
+  val ebConfigPullTask = (eb.ebClient, eb.ebConfigDirectory, streams) map {
+    (ebClient, ebConfigDirectory, s) => {
+      s.log.info("Config pull: describing all applications")
+      for (app <- ebClient.describeApplications().getApplications;
+           templateName <- app.getConfigurationTemplates) yield {
+        val appName = app.getApplicationName
+        s.log.info("Config pull: describing template '" + templateName + "' for app '" + appName + "'.")
+        val configDesc = ebClient.describeConfigurationSettings(
+          new DescribeConfigurationSettingsRequest(appName).withTemplateName(templateName)
+        ).getConfigurationSettings.head
+        assert(configDesc.getTemplateName == templateName)
+
+        // Get the configuration options so we only write settings that are different from the defaults.
+        val configOpts = ebClient.describeConfigurationOptions(
+          new DescribeConfigurationOptionsRequest().withApplicationName(appName).withTemplateName(templateName)
+        ).getOptions
+
+        val userSettings = configDesc.getOptionSettings.filter { setting =>
+          val opt = configOpts.find(o => o.getNamespace == setting.getNamespace && o.getName == setting.getOptionName).get
+          opt.getDefaultValue != setting.getValue
         }
+
+        val baseName = templateName + ".tmpl.conf"
+        val file = ebConfigDirectory / appName / baseName
+        val opts = userSettings.groupBy(_.getNamespace).mapValues {
+          os => os.map(o => (o.getOptionName -> o.getValue)).toMap.asJava
+        }.asJava
+        IO.write(file, optionSettingsToJson(opts), IO.utf8, false)
+        file
       }
     }.toList
   }
