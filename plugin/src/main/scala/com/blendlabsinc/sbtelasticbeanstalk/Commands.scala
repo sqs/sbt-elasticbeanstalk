@@ -16,7 +16,7 @@ import scala.collection.JavaConverters._
 trait ElasticBeanstalkCommands {
   val ebDeployTask = (eb.ebWait, eb.ebSetUpEnvForAppVersion, eb.ebRegion, eb.ebParentEnvironments, state, streams) map {
     (waited, setUpEnvs, ebRegion, parentEnvs, state, s) => {
-      java.lang.Thread.sleep(5000)
+      java.lang.Thread.sleep(15000)
       Project.runTask(eb.ebWait, state)
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
       setUpEnvs.map { case (deployment, setUpEnv) =>
@@ -86,13 +86,13 @@ trait ElasticBeanstalkCommands {
               "  EB environment name: " + targetEnv.getEnvironmentName
             )
 
-            val res = ebClient.updateEnvironment(
+            val res = throttled { ebClient.updateEnvironment(
               new UpdateEnvironmentRequest()
               .withEnvironmentName(deployment.envBaseName)
               .withVersionLabel(appVersion.getVersionLabel)
               .withOptionSettings(envVarSettings ++ localConfigChanges.optionsToSet)
               .withOptionsToRemove(localConfigChanges.optionsToRemove)
-            )
+            )}
             s.log.info("Elastic Beanstalk app version update complete. The new version will not be available " +
                        "until the environment and app server are ready. The environment will experience " +
                        "downtime during the environment update.\n" +
@@ -109,7 +109,7 @@ trait ElasticBeanstalkCommands {
               "  EB environment name: " + targetEnv.getEnvironmentName + "\n"
             )
 
-            val res = ebClient.createEnvironment(
+            val res = throttled { ebClient.createEnvironment(
               new CreateEnvironmentRequest()
               .withApplicationName(targetEnv.getApplicationName)
               .withEnvironmentName(targetEnv.getEnvironmentName)
@@ -117,7 +117,7 @@ trait ElasticBeanstalkCommands {
               .withVersionLabel(appVersion.getVersionLabel)
               .withCNAMEPrefix(targetEnv.getCNAME)
               .withOptionSettings(envVarSettings ++ localConfigChanges.optionsToSetOnNewEnvironment.filter(_.getValue != null).filterNot(o => o.getNamespace == "aws:cloudformation:template:parameter" && o.getOptionName == "AppSource")) // TODO: get error 'Specify the subnets for the VPC' if null values are not filtered out...why? + AppSource error
-            )
+            )}
             s.log.info("Elastic Beanstalk app version update complete. The new version will not be available " +
                        "until the new environment is ready. When the new environment is ready, its " +
                        "CNAME will be swapped with the current environment's CNAME, resulting in no downtime.\n" +
@@ -135,14 +135,14 @@ trait ElasticBeanstalkCommands {
     val ebClient = AWS.elasticBeanstalkClient(ebRegion)
     val environmentsByAppName = ebDeployments.groupBy(_.appName).mapValues(ds => ds.map(_.envBaseName))
     environmentsByAppName.flatMap { case (appName, envBaseNames) =>
-      ebClient.describeEnvironments(
+      throttled { ebClient.describeEnvironments(
         new DescribeEnvironmentsRequest()
           .withApplicationName(appName)
       ).getEnvironments.filter { e =>
         envBaseNames.count(e.getEnvironmentName.startsWith(_)) > 0
       }.filter { e =>
         EnvironmentStatus.valueOf(e.getStatus) == EnvironmentStatus.Ready
-      }
+      }}
     }.toList
   }
 
@@ -171,11 +171,11 @@ trait ElasticBeanstalkCommands {
                             "the following option: -Dsbt.elasticbeanstalk.dryrun=false.")
       }
       envsToClean.foreach { env =>
-        ebClient.terminateEnvironment(
+        throttled { ebClient.terminateEnvironment(
           new TerminateEnvironmentRequest()
           .withEnvironmentName(env.getEnvironmentName)
           .withTerminateResources(true)
-        )
+        )}
         s.log.info("Terminated environment " + env.getEnvironmentName + ".")
       }
     }
@@ -189,11 +189,11 @@ trait ElasticBeanstalkCommands {
       var done = false
       while (!done) {
         val elapsedSec = (System.currentTimeMillis - startTime)/1000
-        val envDesc = ebClient.describeEnvironments(
+        val envDesc = throttled { ebClient.describeEnvironments(
           new DescribeEnvironmentsRequest()
             .withApplicationName(deployment.appName)
             .withEnvironmentNames(List(targetEnv.getEnvironmentName))
-        ).getEnvironments.headOption
+        )}.getEnvironments.headOption
         envDesc match {
           case Some(envDesc) => {
             done = (EnvironmentStatus.valueOf(envDesc.getStatus) == EnvironmentStatus.Ready &&
@@ -211,13 +211,13 @@ trait ElasticBeanstalkCommands {
                     "Status: " + envDesc.getStatus + "   " +
                     "Health: " + envDesc.getHealth + "   " +
                     "(" + elapsedSec + "s)")
-              java.lang.Thread.sleep(10000)
+              java.lang.Thread.sleep(15000)
             }
           }
           case None => {
             s.log.warn("Environment " + deployment.appName + "/" + targetEnv.getEnvironmentName + " " +
                        "not found. Trying again after a delay...")
-            java.lang.Thread.sleep(10000)
+            java.lang.Thread.sleep(15000)
           }
         }
         if (elapsedSec > (20*60)) { // 20 minutes
@@ -306,11 +306,11 @@ trait ElasticBeanstalkCommands {
   }
 
   private def getEnvironmentConfigurationSettingsDescription(ebClient: AWSElasticBeanstalkClient, env: EnvironmentDescription): List[ConfigurationSettingsDescription] =
-    ebClient.describeConfigurationSettings(
+    throttled { ebClient.describeConfigurationSettings(
       new DescribeConfigurationSettingsRequest()
       .withApplicationName(env.getApplicationName)
       .withEnvironmentName(env.getEnvironmentName)
-    ).getConfigurationSettings.toList
+    )}.getConfigurationSettings.toList
 
   /**
    * Filter out deployments that don't exist on EB already, since they have no config to pull anyway.
@@ -354,12 +354,12 @@ trait ElasticBeanstalkCommands {
                      " * Removing options: \n\t" + changes.optionsToRemove.mkString("\n\t"))
           val res = deployment.scheme match {
             case ReplaceExistingEnvironment() => {
-              ebClient.updateEnvironment(
+              throttled { ebClient.updateEnvironment(
                 new UpdateEnvironmentRequest()
                 .withEnvironmentName(deployment.envBaseName)
                 .withOptionSettings(changes.optionsToSet)
                 .withOptionsToRemove(changes.optionsToRemove)
-              )
+              )}
             }
             case CreateNewEnvironmentAndSwap(cname) => {
               throw new Exception("eb-config-push CreateNewEnvironmentAndSwap not yet implemented")
@@ -382,11 +382,11 @@ trait ElasticBeanstalkCommands {
         val remoteEnvOpt = parentEnvs(deployment)
         remoteEnvOpt match {
           case Some(envDesc) => {
-            val remoteOptionSettings: Set[ConfigurationOptionSetting] = ebClient.describeConfigurationSettings(
+            val remoteOptionSettings: Set[ConfigurationOptionSetting] = throttled { ebClient.describeConfigurationSettings(
               new DescribeConfigurationSettingsRequest()
               .withApplicationName(envDesc.getApplicationName)
               .withEnvironmentName(envDesc.getEnvironmentName)
-            ).getConfigurationSettings.flatMap(_.getOptionSettings).toSet
+            )}.getConfigurationSettings.flatMap(_.getOptionSettings).toSet
             val locallyAddedSettings = (localOptionSettings -- remoteOptionSettings)
             val locallyRemovedSettings = remoteOptionSettings.filterNot { ro => // filter out options that exist locally
               localOptionSettings.find(lo => lo.getNamespace == ro.getNamespace && lo.getOptionName == ro.getOptionName).isDefined
@@ -437,12 +437,12 @@ trait ElasticBeanstalkCommands {
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
       val validatedChanges = ebLocalConfigChanges.map { case (deployment, configChanges) =>
         deployment -> {
-          val validationMessages = ebClient.validateConfigurationSettings(
+          val validationMessages = throttled { ebClient.validateConfigurationSettings(
             new ValidateConfigurationSettingsRequest()
               .withApplicationName(deployment.appName)
               .withEnvironmentName(deployment.envBaseName)
               .withOptionSettings(configChanges.optionsToSet)
-          ).getMessages
+          )}.getMessages
           validationMessages.foreach { msg =>
             val logFn = ValidationSeverity.valueOf(Map("error"->"Error", "warning"->"Warning")(msg.getSeverity)) match {
               case ValidationSeverity.Error => {
@@ -479,5 +479,10 @@ trait ElasticBeanstalkCommands {
   }
   private def optionSettingsToJson(opts: java.util.Map[String,java.util.Map[String,String]]): String = {
     jsonMapper.writeValueAsString(opts)
+  }
+
+  def throttled[T](block: => T): T = synchronized {
+    java.lang.Thread.sleep(1500)
+    block
   }
 }
