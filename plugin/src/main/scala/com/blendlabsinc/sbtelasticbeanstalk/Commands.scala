@@ -14,11 +14,10 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
 trait ElasticBeanstalkCommands {
-  val ebDeployTask = (eb.ebWait, eb.ebSetUpEnvForAppVersion, eb.ebRegion, eb.ebParentEnvironments, state, streams) map {
-    (waited, setUpEnvs, ebRegion, parentEnvs, state, s) => {
+  val ebDeployTask = (eb.ebWait, eb.ebSetUpEnvForAppVersion, eb.ebClient, eb.ebParentEnvironments, state, streams) map {
+    (waited, setUpEnvs, ebClient, parentEnvs, state, s) => {
       java.lang.Thread.sleep(15000)
       Project.runTask(eb.ebWait, state)
-      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
       setUpEnvs.map { case (deployment, setUpEnv) =>
           // Swap and terminate the parent environment if it exists.
           parentEnvs(deployment).map { parentEnv =>
@@ -46,9 +45,8 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebSetUpEnvForAppVersionTask = (eb.ebUploadSourceBundle, eb.ebParentEnvironments, eb.ebTargetEnvironments, eb.ebLocalConfigChanges, eb.ebRegion, streams) map {
-    (sourceBundle, parentEnvs, targetEnvs, ebLocalConfigChanges, ebRegion, s) => {
-      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+  val ebSetUpEnvForAppVersionTask = (eb.ebUploadSourceBundle, eb.ebParentEnvironments, eb.ebTargetEnvironments, eb.ebLocalConfigChanges, eb.ebClient, streams) map {
+    (sourceBundle, parentEnvs, targetEnvs, ebLocalConfigChanges, ebClient, s) => {
       val versionLabel = sourceBundle.getS3Key
       val appVersions = targetEnvs.keys.map(_.appName).toSet.map { (appName: String) =>
         appName ->
@@ -100,8 +98,7 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebExistingEnvironmentsTask = (eb.ebDeployments, eb.ebRegion, streams) map { (ebDeployments, ebRegion, s) =>
-    val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+  val ebExistingEnvironmentsTask = (eb.ebDeployments, eb.ebClient, streams) map { (ebDeployments, ebClient, s) =>
     val environmentsByAppName = ebDeployments.groupBy(_.appName).mapValues(ds => ds.map(_.envBaseName))
     environmentsByAppName.flatMap { case (appName, envBaseNames) =>
       throttled { ebClient.describeEnvironments(
@@ -116,9 +113,8 @@ trait ElasticBeanstalkCommands {
   }
 
   val ageToTerminate = 1000*60*45 // msec (45 minutes)
-  val ebCleanEnvironmentsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebRegion, streams) map {
-    (deployments, existingEnvs, ebRegion, s) => {
-      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+  val ebCleanEnvironmentsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebClient, streams) map {
+    (deployments, existingEnvs, ebClient, s) => {
       val envsToClean = deployments.flatMap { d =>
         existingEnvs.filter { e =>
           def trimName(cname: String) = cname.replace(".elasticbeanstalk.com", "")
@@ -146,8 +142,7 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebWaitForEnvironmentsTask = (eb.ebTargetEnvironments, eb.ebRegion, streams) map { (targetEnvs, ebRegion, s) =>
-    val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+  val ebWaitForEnvironmentsTask = (eb.ebTargetEnvironments, eb.ebClient, streams) map { (targetEnvs, ebClient, s) =>
     targetEnvs.foreach { case (deployment, targetEnv) =>
       val startTime = System.currentTimeMillis
       var logged = false
@@ -195,8 +190,8 @@ trait ElasticBeanstalkCommands {
     s.log.info("All environments are Ready and Green.")
   }
 
-  val ebParentEnvironmentsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebRegion, streams) map {
-    (ebDeployments, existingEnvs, ebRegion, s) => {
+  val ebParentEnvironmentsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebClient, streams) map {
+    (ebDeployments, existingEnvs, ebClient, s) => {
       ebDeployments.map { d =>
         d -> existingEnvs.find(ee => ee.getCNAME == d.cname.toLowerCase)
       }.toMap
@@ -229,8 +224,8 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebUploadSourceBundleTask = (Play2WarKeys.war, eb.ebS3BucketName, eb.ebRegion, eb.ebRequireJava6, streams) map {
-    (war, s3BucketName, ebRegion, ebRequireJava6, s) => {
+  val ebUploadSourceBundleTask = (Play2WarKeys.war, eb.ebS3BucketName, eb.ebClient, eb.ebRequireJava6, streams) map {
+    (war, s3BucketName, ebClient, ebRequireJava6, s) => {
       if (ebRequireJava6 && System.getProperty("java.specification.version") != "1.6") {
         throw new Exception(
           "ebRequireJava6 := true, but you are currently running in Java " +
@@ -266,9 +261,8 @@ trait ElasticBeanstalkCommands {
       envOpt.map(eo => Some(d -> eo)).getOrElse(None)
     }.toMap
 
-  val ebConfigPullTask = (eb.ebDeployments, eb.ebRegion, eb.ebParentEnvironments, eb.ebConfigDirectory, streams) map {
-    (ebDeployments, ebRegion, parentEnvs, ebConfigDirectory, s) => {
-      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+  val ebConfigPullTask = (eb.ebDeployments, eb.ebClient, eb.ebParentEnvironments, eb.ebConfigDirectory, streams) map {
+    (ebDeployments, ebClient, parentEnvs, ebConfigDirectory, s) => {
       existingParentEnvs(parentEnvs).flatMap { case (deployment, parentEnv) =>
         getEnvironmentConfigurationSettingsDescription(ebClient, parentEnv).map { configDesc =>
           val baseName = if (configDesc.getTemplateName != null) {
@@ -287,9 +281,8 @@ trait ElasticBeanstalkCommands {
     }.toList
   }
 
-  val ebConfigPushTask = (eb.ebLocalConfigChanges, eb.ebLocalConfigValidate, eb.ebRegion, state, streams) map {
-    (localConfigChanges, validatedLocalConfigs, ebRegion, state, s) => {
-      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+  val ebConfigPushTask = (eb.ebLocalConfigChanges, eb.ebLocalConfigValidate, eb.ebClient, state, streams) map {
+    (localConfigChanges, validatedLocalConfigs, ebClient, state, s) => {
       localConfigChanges.foreach { case (deployment, changes) =>
         if (!changes.optionsToSetOnNewEnvironment.isEmpty) {
           throw new Exception("Creating a new environment is not yet implemented")
@@ -308,9 +301,8 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebLocalConfigChangesTask = (eb.ebLocalConfig, eb.ebParentEnvironments, eb.ebRegion, streams) map {
-    (ebLocalConfigs, parentEnvs, ebRegion, s) => {
-      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
+  val ebLocalConfigChangesTask = (eb.ebLocalConfig, eb.ebParentEnvironments, eb.ebClient, streams) map {
+    (ebLocalConfigs, parentEnvs, ebClient, s) => {
       ebLocalConfigs.map { case (deployment, localOptionSettings) =>
         val remoteEnvOpt = parentEnvs(deployment)
         remoteEnvOpt match {
@@ -336,8 +328,8 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebLocalConfigReadTask = (eb.ebDeployments, eb.ebRegion, eb.ebConfigDirectory, streams) map {
-    (ebDeployments, ebRegion, ebConfigDirectory, s) => {
+  val ebLocalConfigReadTask = (eb.ebDeployments, eb.ebClient, eb.ebConfigDirectory, streams) map {
+    (ebDeployments, ebClient, ebConfigDirectory, s) => {
       ebDeployments.flatMap { deployment =>
         val envConfig = ebConfigDirectory / deployment.appName / (deployment.envBaseName + ".env.config")
         envConfig.exists match {
@@ -364,10 +356,9 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebLocalConfigValidateTask = (eb.ebLocalConfigChanges, eb.ebRegion, streams) map {
-    (ebLocalConfigChanges, ebRegion, s) => {
+  val ebLocalConfigValidateTask = (eb.ebLocalConfigChanges, eb.ebClient, streams) map {
+    (ebLocalConfigChanges, ebClient, s) => {
       var validationFailed = false
-      val ebClient = AWS.elasticBeanstalkClient(ebRegion)
       val validatedChanges = ebLocalConfigChanges.map { case (deployment, configChanges) =>
         deployment -> {
           val validationMessages = throttled { ebClient.validateConfigurationSettings(

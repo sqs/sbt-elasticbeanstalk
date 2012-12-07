@@ -1,5 +1,6 @@
 package com.blendlabsinc.sbtelasticbeanstalk
 
+import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
 import com.amazonaws.services.elasticbeanstalk.model._
 import java.io.File
 import sbt.{ SettingKey, TaskKey }
@@ -49,6 +50,8 @@ object ElasticBeanstalkKeys {
 
   val ebApiDescribeApplications = TaskKey[List[ApplicationDescription]]("eb-api-describe-applications", "Returns the descriptions of existing applications")
   val ebApiDescribeEnvironments = TaskKey[List[EnvironmentDescription]]("eb-api-describe-environments", "Returns descriptions for existing environments")
+
+  val ebClient = TaskKey[AWSElasticBeanstalkClient]("eb-client")
 
   // Debug
   val ebRequireJava6 = SettingKey[Boolean]("eb-require-java6", "Require Java6 to deploy WAR (as of Dec 2012, Java7 is incompatible with EB)")

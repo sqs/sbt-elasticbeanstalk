@@ -1,5 +1,6 @@
 package com.blendlabsinc.sbtelasticbeanstalk
 
+import com.blendlabsinc.sbtelasticbeanstalk.core.AWS
 import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
 import sbt.{ Setting, Hash }
 import sbt.Keys.{ baseDirectory, commands }
@@ -29,6 +30,7 @@ trait ElasticBeanstalkSettings {
     ebLocalConfigChanges <<= ebLocalConfigChangesTask,
     ebLocalConfigValidate <<= ebLocalConfigValidateTask,
     ebConfigDirectory <<= baseDirectory / "eb-deploy",
+    ebClient <<= (ebRegion) map { (region) => AWS.elasticBeanstalkClient(region) },
     ebApiDescribeApplications <<= ebApiDescribeApplicationsTask,
     ebApiDescribeEnvironments <<= ebApiDescribeEnvironmentsTask,
     commands ++= Seq(ebApiRestartAppServer),
