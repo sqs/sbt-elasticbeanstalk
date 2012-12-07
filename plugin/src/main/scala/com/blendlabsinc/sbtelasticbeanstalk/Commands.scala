@@ -262,6 +262,12 @@ trait ElasticBeanstalkCommands {
     }.toMap
 
   val ebConfigPullTask = (eb.ebClient, eb.ebConfigDirectory, streams) map {
+    def writeSettings(file: File, settings: Iterable[ConfigurationOptionSetting]) {
+      val settingsMap = settings.groupBy(_.getNamespace).mapValues {
+        os => os.map(o => (o.getOptionName -> o.getValue)).toMap.asJava
+      }.asJava
+      IO.write(file, optionSettingsToJson(settingsMap), IO.utf8, false)
+    }
     (ebClient, ebConfigDirectory, s) => {
       s.log.info("Config pull: describing all applications")
       for (app <- ebClient.describeApplications().getApplications;
@@ -285,10 +291,7 @@ trait ElasticBeanstalkCommands {
 
         val baseName = templateName + ".tmpl.conf"
         val file = ebConfigDirectory / appName / baseName
-        val opts = userSettings.groupBy(_.getNamespace).mapValues {
-          os => os.map(o => (o.getOptionName -> o.getValue)).toMap.asJava
-        }.asJava
-        IO.write(file, optionSettingsToJson(opts), IO.utf8, false)
+        writeSettings(file, userSettings)
         file
       }
     }.toList
