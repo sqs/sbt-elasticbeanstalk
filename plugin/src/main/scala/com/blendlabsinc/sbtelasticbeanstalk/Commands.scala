@@ -20,12 +20,11 @@ trait ElasticBeanstalkCommands {
       Project.runTask(eb.ebWait, state)
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
       setUpEnvs.map { case (deployment, setUpEnv) =>
-        val parentEnv = parentEnvs(deployment)
-        (parentEnv, deployment.scheme) match {
-          case (Some(parentEnv), CreateNewEnvironmentAndSwap(cname)) => {
+          // Swap and terminate the parent environment if it exists.
+          parentEnvs(deployment).map { parentEnv =>
             s.log.info("Swapping environment CNAMEs for app " + deployment.appName + ", " +
-                       "with source " + parentEnv.getEnvironmentName + " and destination " +
-                       setUpEnv.getEnvironmentName + ".")
+              "with source " + parentEnv.getEnvironmentName + " and destination " +
+              setUpEnv.getEnvironmentName + ".")
             ebClient.swapEnvironmentCNAMEs(
               new SwapEnvironmentCNAMEsRequest()
                 .withSourceEnvironmentName(parentEnv.getEnvironmentName)
@@ -36,13 +35,11 @@ trait ElasticBeanstalkCommands {
             java.lang.Thread.sleep(60 * 1000)
             ebClient.terminateEnvironment(
               new TerminateEnvironmentRequest()
-              .withEnvironmentName(parentEnv.getEnvironmentName)
-              .withTerminateResources(true)
+                .withEnvironmentName(parentEnv.getEnvironmentName)
+                .withTerminateResources(true)
             )
             s.log.info("Old environment terminated.")
           }
-          case _ => {} // nothing to do
-        }
       }
       s.log.info("Deployment complete.")
       ()
@@ -65,68 +62,40 @@ trait ElasticBeanstalkCommands {
       }.toMap
 
       parentEnvs.map { case (deployment, parentEnv) =>
-        val appVersion = appVersions(deployment.appName)
-        val localConfigChanges = ebLocalConfigChanges.get(deployment).getOrElse {
-          s.log.warn("No local configuration found for " +
-                     deployment.appName + "/"+ deployment.envBaseName + ".")
-          ConfigurationChanges()
-        }
-        val targetEnv = targetEnvs(deployment)
+          val appVersion = appVersions(deployment.appName)
+          val localConfigChanges = ebLocalConfigChanges.get(deployment).getOrElse {
+            s.log.warn("No local configuration found for " +
+              deployment.appName + "/"+ deployment.envBaseName + ".")
+            ConfigurationChanges()
+          }
+          val targetEnv = targetEnvs(deployment)
 
-        val envVarSettings = deployment.environmentVariables.map { case (k, v) =>
-          new ConfigurationOptionSetting("aws:elasticbeanstalk:application:environment", k, v)
-        }
-
-        val res = (parentEnv, deployment.scheme) match {
-          case (Some(parentEnv), ReplaceExistingEnvironment()) => {
-            s.log.info(
-              "Updating application version on Elastic Beanstalk:\n" +
-              "  EB app version label: " + versionLabel + "\n" +
-              "  EB app: " + deployment.appName + "\n" +
-              "  EB environment name: " + targetEnv.getEnvironmentName
-            )
-
-            val res = throttled { ebClient.updateEnvironment(
-              new UpdateEnvironmentRequest()
-              .withEnvironmentName(deployment.envBaseName)
-              .withVersionLabel(appVersion.getVersionLabel)
-              .withOptionSettings(envVarSettings ++ localConfigChanges.optionsToSet)
-              .withOptionsToRemove(localConfigChanges.optionsToRemove)
-            )}
-            s.log.info("Elastic Beanstalk app version update complete. The new version will not be available " +
-                       "until the environment and app server are ready. The environment will experience " +
-                       "downtime during the environment update.\n" +
-                       "URL: http://" + res.getCNAME() + "\n" +
-                       "Status: " + res.getHealth())
-            new EnvironmentDescription().withEnvironmentName(res.getEnvironmentName).withCNAME(res.getCNAME)
+          val envVarSettings = deployment.environmentVariables.map { case (k, v) =>
+              new ConfigurationOptionSetting("aws:elasticbeanstalk:application:environment", k, v)
           }
 
-          case _ => {
-            s.log.info(
-              "Creating new environment for application version on Elastic Beanstalk:\n" +
+          s.log.info(
+            "Creating new environment for application version on Elastic Beanstalk:\n" +
               "  EB app version label: " + versionLabel + "\n" +
               "  EB app: " + deployment.appName + "\n" +
               "  EB environment name: " + targetEnv.getEnvironmentName + "\n"
-            )
+          )
 
-            val res = throttled { ebClient.createEnvironment(
-              new CreateEnvironmentRequest()
+          val res = throttled { ebClient.createEnvironment(
+            new CreateEnvironmentRequest()
               .withApplicationName(targetEnv.getApplicationName)
               .withEnvironmentName(targetEnv.getEnvironmentName)
               .withSolutionStackName(targetEnv.getSolutionStackName)
               .withVersionLabel(appVersion.getVersionLabel)
               .withCNAMEPrefix(targetEnv.getCNAME)
               .withOptionSettings(envVarSettings ++ localConfigChanges.optionsToSetOnNewEnvironment.filter(_.getValue != null).filterNot(o => o.getNamespace == "aws:cloudformation:template:parameter" && o.getOptionName == "AppSource")) // TODO: get error 'Specify the subnets for the VPC' if null values are not filtered out...why? + AppSource error
-            )}
-            s.log.info("Elastic Beanstalk app version update complete. The new version will not be available " +
-                       "until the new environment is ready. When the new environment is ready, its " +
-                       "CNAME will be swapped with the current environment's CNAME, resulting in no downtime.\n" +
-                       "URL: http://" + res.getCNAME() + "\n" +
-                       "Status: " + res.getHealth())
-            new EnvironmentDescription().withEnvironmentName(res.getEnvironmentName).withCNAME(res.getCNAME)
-          }
-        }
-        deployment -> res
+          )}
+          s.log.info("Elastic Beanstalk app version update complete. The new version will not be available " +
+            "until the new environment is ready. When the new environment is ready, its " +
+            "CNAME will be swapped with the current environment's CNAME, resulting in no downtime.\n" +
+            "URL: http://" + res.getCNAME() + "\n" +
+            "Status: " + res.getHealth())
+          deployment -> (new EnvironmentDescription().withEnvironmentName(res.getEnvironmentName).withCNAME(res.getCNAME))
       }.toMap
     }
   }
@@ -150,20 +119,16 @@ trait ElasticBeanstalkCommands {
   val ebCleanEnvironmentsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebRegion, streams) map {
     (deployments, existingEnvs, ebRegion, s) => {
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
-      val envsToClean = deployments.flatMap { d => d.scheme match {
-        case CreateNewEnvironmentAndSwap(cname) => {
-          existingEnvs.filter { e =>
-            def trimName(cname: String) = cname.replace(".elasticbeanstalk.com", "")
-            // The trailing dash means that this is NOT the currently active environment for the CNAME.
-            val isThisDeployment = e.getEnvironmentName.startsWith(d.envBaseName)
-            val isNotActiveCNAME = e.getCNAME != cname
-            val ageMsec = System.currentTimeMillis - e.getDateUpdated.getTime
-            isThisDeployment && isNotActiveCNAME && (ageMsec > ageToTerminate)
-          }
+      val envsToClean = deployments.flatMap { d =>
+        existingEnvs.filter { e =>
+          def trimName(cname: String) = cname.replace(".elasticbeanstalk.com", "")
+          // The trailing dash means that this is NOT the currently active environment for the CNAME.
+          val isThisDeployment = e.getEnvironmentName.startsWith(d.envBaseName)
+          val isNotActiveCNAME = e.getCNAME != d.cname
+          val ageMsec = System.currentTimeMillis - e.getDateUpdated.getTime
+          isThisDeployment && isNotActiveCNAME && (ageMsec > ageToTerminate)
         }
-
-        case ReplaceExistingEnvironment() => Nil
-      }}
+      }
       s.log.info("Going to terminate the following environments: \n\t" + envsToClean.mkString("\n\t"))
       if (envsToClean.isEmpty) s.log.info("  (no environments found eligible for cleaning/termination)")
       if (System.getProperty("sbt.elasticbeanstalk.dryrun") != "false") {
@@ -233,15 +198,7 @@ trait ElasticBeanstalkCommands {
   val ebParentEnvironmentsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebRegion, streams) map {
     (ebDeployments, existingEnvs, ebRegion, s) => {
       ebDeployments.map { d =>
-        d -> {
-          d.scheme match {
-            case CreateNewEnvironmentAndSwap(cname) =>
-              existingEnvs.find(ee => ee.getCNAME == cname.toLowerCase)
-
-            case ReplaceExistingEnvironment() =>
-              existingEnvs.find(ee => ee.getApplicationName == d.appName && ee.getEnvironmentName == d.envBaseName)
-          }
-        }
+        d -> existingEnvs.find(ee => ee.getCNAME == d.cname.toLowerCase)
       }.toMap
     }
   }
@@ -249,36 +206,25 @@ trait ElasticBeanstalkCommands {
   val ebTargetEnvironmentsTask = (eb.ebParentEnvironments, eb.ebEnvironmentNameSuffix, streams) map {
     (parentEnvs, envBaseNameSuffixFn, s) => {
       parentEnvs.map { case (deployment, parentEnvOpt) =>
-        deployment -> (deployment.scheme match {
-          case CreateNewEnvironmentAndSwap(cname) => {
+          deployment -> {
             val newEnvName = envBaseNameSuffixFn(deployment.envBaseName)
             new EnvironmentDescription()
-            .withApplicationName(deployment.appName)
-            .withEnvironmentName(newEnvName)
-            .withCNAME(parentEnvOpt match {
-              case Some(p) => newEnvName
-              case None => {
-                s.log.warn("Deployment is using CreateNewEnvironmentAndSwap scheme and environment " +
-                           "does not yet exist, so the environment will be created. There is no guarantee that " +
-                           "the requested CNAME '" + cname + "' will be available, so you MUST " +
-                           "check the CNAME that actually gets assigned and update your sbt Deployment " +
-                           "definition to use that CNAME.")
-                cname.replace(".elasticbeanstalk.com", "")
-              }
-            }
-            )
-            .withSolutionStackName("64bit Amazon Linux running Tomcat 7")
-          }
-
-          case ReplaceExistingEnvironment() =>
-            parentEnvOpt.getOrElse(
-              new EnvironmentDescription()
               .withApplicationName(deployment.appName)
-              .withEnvironmentName(deployment.envBaseName)
-              .withCNAME(deployment.envBaseName)
+              .withEnvironmentName(newEnvName)
               .withSolutionStackName("64bit Amazon Linux running Tomcat 7")
+              .withCNAME(parentEnvOpt match {
+                case Some(p) => newEnvName
+                case None => {
+                  s.log.warn("Deployment is using CreateNewEnvironmentAndSwap scheme and environment " +
+                    "does not yet exist, so the environment will be created. There is no guarantee that " +
+                    "the requested CNAME '" + deployment.cname + "' will be available, so you MUST " +
+                    "check the CNAME that actually gets assigned and update your sbt Deployment " +
+                    "definition to use that CNAME.")
+                  deployment.cname.replace(".elasticbeanstalk.com", "")
+                }
+              }
             )
-        })
+          }
       }.toMap
     }
   }
@@ -344,7 +290,7 @@ trait ElasticBeanstalkCommands {
   val ebConfigPushTask = (eb.ebLocalConfigChanges, eb.ebLocalConfigValidate, eb.ebRegion, state, streams) map {
     (localConfigChanges, validatedLocalConfigs, ebRegion, state, s) => {
       val ebClient = AWS.elasticBeanstalkClient(ebRegion)
-      localConfigChanges.flatMap { case (deployment, changes) =>
+      localConfigChanges.foreach { case (deployment, changes) =>
         if (!changes.optionsToSetOnNewEnvironment.isEmpty) {
           throw new Exception("Creating a new environment is not yet implemented")
         } else if (!changes.optionsToSet.isEmpty || !changes.optionsToRemove.isEmpty) {
@@ -352,26 +298,13 @@ trait ElasticBeanstalkCommands {
                      " environment " + deployment.envBaseName + "\n" +
                      " * Setting options: \n\t" + changes.optionsToSet.mkString("\n\t") + "\n" +
                      " * Removing options: \n\t" + changes.optionsToRemove.mkString("\n\t"))
-          val res = deployment.scheme match {
-            case ReplaceExistingEnvironment() => {
-              throttled { ebClient.updateEnvironment(
-                new UpdateEnvironmentRequest()
-                .withEnvironmentName(deployment.envBaseName)
-                .withOptionSettings(changes.optionsToSet)
-                .withOptionsToRemove(changes.optionsToRemove)
-              )}
-            }
-            case CreateNewEnvironmentAndSwap(cname) => {
-              throw new Exception("eb-config-push CreateNewEnvironmentAndSwap not yet implemented")
-            }
-          }
-          s.log.info("Updated config for app " + deployment.appName + " environment " + deployment.envBaseName)
-          Some(res)
+          throw new Exception("eb-config-push CreateNewEnvironmentAndSwap not yet implemented")
+          // s.log.info("Updated config for app " + deployment.appName + " environment " + deployment.envBaseName)
         } else {
           s.log.info("No local config changes for " + deployment.appName + " environment " + deployment.envBaseName)
           None
         }
-      }.toList
+      }
     }
   }
 
@@ -459,7 +392,7 @@ trait ElasticBeanstalkCommands {
         }
       }.toMap
       if (validationFailed) {
-        throw new Exception("Local configuration failed to validate. See messages above.")        
+        throw new Exception("Local configuration failed to validate. See messages above.")
       } else {
         validatedChanges
       }

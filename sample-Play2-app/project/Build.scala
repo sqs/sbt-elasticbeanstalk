@@ -1,7 +1,7 @@
 import sbt._
 import Keys._
 import play.Project._
-import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalk, Deployment, CreateNewEnvironmentAndSwap }
+import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalk, Deployment }
 import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
 import com.github.play2war.plugin._
 
@@ -18,13 +18,8 @@ object ApplicationBuild extends Build {
     ebDeployments := Seq(
       Deployment(
         appName = "sbt-elasticbeanstalk-sample-Play2-app",
-        envBaseName = "sbt-eb-sample-Play2",
-        environmentVariables = Map("MyFavoriteColor" -> "blue")
-      ),
-      Deployment(
-        appName = "sbt-elasticbeanstalk-sample-Play2-app",
         envBaseName = "test-swap",
-        scheme = CreateNewEnvironmentAndSwap(cname = "sbt-eb-sample-play2-swap.elasticbeanstalk.com")
+        cname = "sbt-eb-sample-play2-swap.elasticbeanstalk.com"
       )
     ),
     ebRegion := "us-west-1"
