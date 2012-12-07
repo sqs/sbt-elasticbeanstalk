@@ -261,39 +261,57 @@ trait ElasticBeanstalkCommands {
       envOpt.map(eo => Some(d -> eo)).getOrElse(None)
     }.toMap
 
-  val ebConfigPullTask = (eb.ebClient, eb.ebConfigDirectory, streams) map {
-    def writeSettings(file: File, settings: Iterable[ConfigurationOptionSetting]) {
-      val settingsMap = settings.groupBy(_.getNamespace).mapValues {
-        os => os.map(o => (o.getOptionName -> o.getValue)).toMap.asJava
-      }.asJava
-      IO.write(file, optionSettingsToJson(settingsMap), IO.utf8, false)
-    }
-    (ebClient, ebConfigDirectory, s) => {
-      s.log.info("Config pull: describing all applications")
-      for (app <- ebClient.describeApplications().getApplications;
-           templateName <- app.getConfigurationTemplates) yield {
-        val appName = app.getApplicationName
-        s.log.info("Config pull: describing template '" + templateName + "' for app '" + appName + "'.")
-        val configDesc = ebClient.describeConfigurationSettings(
-          new DescribeConfigurationSettingsRequest(appName).withTemplateName(templateName)
-        ).getConfigurationSettings.head
-        assert(configDesc.getTemplateName == templateName)
+  val ebConfigPullTask = (eb.ebApiDescribeEnvironments, eb.ebClient, eb.ebConfigDirectory, streams) map {
+    (allEnvironments, ebClient, ebConfigDirectory, s) => {
+      def writeSettings(appName: String, configBaseName: String, settings: Iterable[ConfigurationOptionSetting]): File = {
+        val file = ebConfigDirectory / appName / configBaseName
+        val settingsMap = settings.groupBy(_.getNamespace).mapValues {
+          os => os.map(o => (o.getOptionName -> o.getValue)).toMap.asJava
+        }.asJava
+        IO.write(file, optionSettingsToJson(settingsMap), IO.utf8, false)
+        file
+      }
 
-        // Get the configuration options so we only write settings that are different from the defaults.
-        val configOpts = ebClient.describeConfigurationOptions(
-          new DescribeConfigurationOptionsRequest().withApplicationName(appName).withTemplateName(templateName)
-        ).getOptions
-
-        val userSettings = configDesc.getOptionSettings.filter { setting =>
+      // * Filter out settings whose value is the default value for that setting.
+      def nonDefaultSettings(configDesc: ConfigurationSettingsDescription, configOpts: Iterable[ConfigurationOptionDescription]): Iterable[ConfigurationOptionSetting] =
+        configDesc.getOptionSettings.filter { setting =>
           val opt = configOpts.find(o => o.getNamespace == setting.getNamespace && o.getName == setting.getOptionName).get
           opt.getDefaultValue != setting.getValue
         }
 
-        val baseName = templateName + ".tmpl.conf"
-        val file = ebConfigDirectory / appName / baseName
-        writeSettings(file, userSettings)
-        file
+      s.log.info("Config pull: describing all applications")
+      // Get configuration templates.
+      val templateFiles = for (app <- ebClient.describeApplications().getApplications;
+                               templateName <- app.getConfigurationTemplates) yield {
+        val appName = app.getApplicationName
+        s.log.info("Config pull: describing configuration settings for template '" + templateName + "' in app '" + appName + "'.")
+        val configDesc = ebClient.describeConfigurationSettings(
+          new DescribeConfigurationSettingsRequest(appName).withTemplateName(templateName)
+        ).getConfigurationSettings.head
+        assert(configDesc.getTemplateName == templateName)
+        s.log.debug("Config pull: describing config options for template '" + templateName + "' in app '" + appName + "'.")
+        val configOpts = throttled { ebClient.describeConfigurationOptions(
+          new DescribeConfigurationOptionsRequest().withApplicationName(appName).withTemplateName(templateName)
+        )}.getOptions
+        writeSettings(appName, templateName + ".tmpl.conf", nonDefaultSettings(configDesc, configOpts))
       }
+
+      // Get environment configurations.
+      val envConfigFiles = for (env <- allEnvironments.filter(_.getStatus == "Ready")) yield {
+        val appName = env.getApplicationName
+        val envName = env.getEnvironmentName
+        s.log.info("Config pull: describing configuration settings for env '" + envName + "' in app '" + appName + "'.")
+        val configDesc = throttled { ebClient.describeConfigurationSettings(
+          new DescribeConfigurationSettingsRequest(appName).withEnvironmentName(envName)
+        )}.getConfigurationSettings.head
+        s.log.debug("Config pull: describing config options for env '" + envName + "' in app '" + appName + "'.")
+        val configOpts = throttled { ebClient.describeConfigurationOptions(
+          new DescribeConfigurationOptionsRequest().withEnvironmentName(envName)
+        )}.getOptions
+        writeSettings(appName, envName + ".env.conf", nonDefaultSettings(configDesc, configOpts))
+      }
+
+      templateFiles ++ envConfigFiles
     }.toList
   }
 
