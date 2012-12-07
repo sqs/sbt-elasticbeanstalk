@@ -10,4 +10,4 @@ resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver
 
 // resolvers += Resolver.file("Local Ivy", file(Path.userHome + "/.ivy2/local"))(Resolver.ivyStylePatterns)
 
-addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk-plugin" % "0.0.5-SNAPSHOT")
+addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk-plugin" % "0.0.6-SNAPSHOT")
