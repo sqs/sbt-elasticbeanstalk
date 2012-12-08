@@ -14,8 +14,8 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
 trait ElasticBeanstalkCommands {
-  val ebDeployTask = (eb.ebWait, eb.ebSetUpEnvForAppVersion, eb.ebClient, eb.ebParentEnvironments, state, streams) map {
-    (waited, setUpEnvs, ebClient, parentEnvs, state, s) => {
+  val ebDeployTask = (eb.ebSetUpEnvForAppVersion, eb.ebClient, eb.ebParentEnvironments, state, streams) map {
+    (setUpEnvs, ebClient, parentEnvs, state, s) => {
       java.lang.Thread.sleep(15000)
       Project.runTask(eb.ebWait, state)
       setUpEnvs.map { case (deployment, setUpEnv) =>
@@ -45,8 +45,8 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebSetUpEnvForAppVersionTask = (eb.ebUploadSourceBundle, eb.ebParentEnvironments, eb.ebTargetEnvironments, eb.ebLocalConfigChanges, eb.ebClient, streams) map {
-    (sourceBundle, parentEnvs, targetEnvs, ebLocalConfigChanges, ebClient, s) => {
+  val ebSetUpEnvForAppVersionTask = (eb.ebDeployments, eb.ebUploadSourceBundle, eb.ebParentEnvironments, eb.ebTargetEnvironments, eb.ebClient, streams) map {
+    (deployments, sourceBundle, parentEnvs, targetEnvs, ebClient, s) => {
       val versionLabel = sourceBundle.getS3Key
       val appVersions = targetEnvs.keys.map(_.appName).toSet.map { (appName: String) =>
         appName ->
@@ -61,11 +61,7 @@ trait ElasticBeanstalkCommands {
 
       parentEnvs.map { case (deployment, parentEnv) =>
           val appVersion = appVersions(deployment.appName)
-          val localConfigChanges = ebLocalConfigChanges.get(deployment).getOrElse {
-            s.log.warn("No local configuration found for " +
-              deployment.appName + "/"+ deployment.envBaseName + ".")
-            ConfigurationChanges()
-          }
+          // TODO: check if remote config template is the same as the local one and warn/fail if not
           val targetEnv = targetEnvs(deployment)
 
           val envVarSettings = deployment.environmentVariables.map { case (k, v) =>
@@ -76,18 +72,19 @@ trait ElasticBeanstalkCommands {
             "Creating new environment for application version on Elastic Beanstalk:\n" +
               "  EB app version label: " + versionLabel + "\n" +
               "  EB app: " + deployment.appName + "\n" +
-              "  EB environment name: " + targetEnv.getEnvironmentName + "\n"
+              "  EB environment name: " + targetEnv.getEnvironmentName + "\n" +
+              "  CNAME: " + targetEnv.getCNAME + "\n" +
+              "  Config template: " + deployment.templateName
           )
 
-          val res = throttled { ebClient.createEnvironment(
+          val res = ebClient.createEnvironment(
             new CreateEnvironmentRequest()
               .withApplicationName(targetEnv.getApplicationName)
               .withEnvironmentName(targetEnv.getEnvironmentName)
-              .withSolutionStackName(targetEnv.getSolutionStackName)
               .withVersionLabel(appVersion.getVersionLabel)
               .withCNAMEPrefix(targetEnv.getCNAME)
-              .withOptionSettings(envVarSettings ++ localConfigChanges.optionsToSetOnNewEnvironment.filter(_.getValue != null).filterNot(o => o.getNamespace == "aws:cloudformation:template:parameter" && o.getOptionName == "AppSource")) // TODO: get error 'Specify the subnets for the VPC' if null values are not filtered out...why? + AppSource error
-          )}
+              .withTemplateName(deployment.templateName)
+          )
           s.log.info("Elastic Beanstalk app version update complete. The new version will not be available " +
             "until the new environment is ready. When the new environment is ready, its " +
             "CNAME will be swapped with the current environment's CNAME, resulting in no downtime.\n" +
@@ -206,7 +203,7 @@ trait ElasticBeanstalkCommands {
             new EnvironmentDescription()
               .withApplicationName(deployment.appName)
               .withEnvironmentName(newEnvName)
-              .withSolutionStackName("64bit Amazon Linux running Tomcat 7")
+              .withSolutionStackName(tomcat7SolutionStackName)
               .withCNAME(parentEnvOpt match {
                 case Some(p) => newEnvName
                 case None => {
@@ -246,21 +243,6 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  private def getEnvironmentConfigurationSettingsDescription(ebClient: AWSElasticBeanstalkClient, env: EnvironmentDescription): List[ConfigurationSettingsDescription] =
-    throttled { ebClient.describeConfigurationSettings(
-      new DescribeConfigurationSettingsRequest()
-      .withApplicationName(env.getApplicationName)
-      .withEnvironmentName(env.getEnvironmentName)
-    )}.getConfigurationSettings.toList
-
-  /**
-   * Filter out deployments that don't exist on EB already, since they have no config to pull anyway.
-   */
-  private def existingParentEnvs(parentEnvs: Map[Deployment,Option[EnvironmentDescription]]): Map[Deployment,EnvironmentDescription] =
-    parentEnvs.flatMap { case (d, envOpt) =>
-      envOpt.map(eo => Some(d -> eo)).getOrElse(None)
-    }.toMap
-
   val ebConfigPullTask = (eb.ebApiDescribeEnvironments, eb.ebClient, eb.ebConfigDirectory, streams) map {
     (allEnvironments, ebClient, ebConfigDirectory, s) => {
       def writeSettings(appName: String, configBaseName: String, settings: Iterable[ConfigurationOptionSetting]): File = {
@@ -277,6 +259,13 @@ trait ElasticBeanstalkCommands {
         configDesc.getOptionSettings.filter { setting =>
           val opt = configOpts.find(o => o.getNamespace == setting.getNamespace && o.getName == setting.getOptionName).get
           opt.getDefaultValue != setting.getValue
+        }.map { setting =>
+          // Filter out the CloudFormation Ref that appears when you describe configuration templates:
+          // { ..., "SecurityGroups" : "default,{\"Ref\":\"AWSEBSecurityGroup\"}", ... }
+          if (setting.getNamespace == "aws:autoscaling:launchconfiguration" &&
+              setting.getOptionName == "SecurityGroups") {
+            setting.withValue(setting.getValue.replace(",{\"Ref\":\"AWSEBSecurityGroup\"}", ""))
+          } else setting
         }
 
       s.log.info("Config pull: describing all applications")
@@ -315,113 +304,55 @@ trait ElasticBeanstalkCommands {
     }.toList
   }
 
-  val ebConfigPushTask = (eb.ebLocalConfigChanges, eb.ebLocalConfigValidate, eb.ebClient, state, streams) map {
-    (localConfigChanges, validatedLocalConfigs, ebClient, state, s) => {
-      localConfigChanges.foreach { case (deployment, changes) =>
-        if (!changes.optionsToSetOnNewEnvironment.isEmpty) {
-          throw new Exception("Creating a new environment is not yet implemented")
-        } else if (!changes.optionsToSet.isEmpty || !changes.optionsToRemove.isEmpty) {
-          s.log.info("Updating config for app " + deployment.appName +
-                     " environment " + deployment.envBaseName + "\n" +
-                     " * Setting options: \n\t" + changes.optionsToSet.mkString("\n\t") + "\n" +
-                     " * Removing options: \n\t" + changes.optionsToRemove.mkString("\n\t"))
-          throw new Exception("eb-config-push CreateNewEnvironmentAndSwap not yet implemented")
-          // s.log.info("Updated config for app " + deployment.appName + " environment " + deployment.envBaseName)
+  val ebConfigPushTask = (eb.ebDeployments, eb.ebApiDescribeApplications, eb.ebConfigDirectory, eb.ebClient, streams) map {
+    (deployments, allApps, configDir, ebClient, s) => {
+      def configTemplateExists(appName: String, templateName: String): Boolean = {
+        allApps.find(_.getApplicationName == appName).get.getConfigurationTemplates.contains(templateName)
+      }
+      deployments.foreach { d =>
+        val filename = d.templateName + ".tmpl.conf"
+        val searchPaths = Seq(
+          configDir / d.appName / filename,
+          configDir / "_all" / filename
+        )
+        val filePath = searchPaths.find(_.exists).getOrElse {
+          throw new Exception(
+            "Config push: Couldn't find configuration template file for deployment " + d + ".\n" +
+            "Looked in: " + searchPaths.mkString(":")
+          )
+        }
+        s.log.info("Config push: Using configuration template file '" + filePath + "' for app '" + d.appName + "'.")
+        if (configTemplateExists(d.appName, d.templateName)) {
+          s.log.info("Config push: Updating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
+          throttled { ebClient.updateConfigurationTemplate(
+            new UpdateConfigurationTemplateRequest()
+              .withApplicationName(d.appName)
+              .withTemplateName(d.templateName)
+              .withOptionSettings(readConfigFile(filePath))
+          )}
+          s.log.info("Config push: Finished updating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
         } else {
-          s.log.info("No local config changes for " + deployment.appName + " environment " + deployment.envBaseName)
-          None
+          s.log.info("Creating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
+          throttled { ebClient.createConfigurationTemplate(
+            new CreateConfigurationTemplateRequest()
+              .withApplicationName(d.appName)
+              .withSolutionStackName(tomcat7SolutionStackName)
+              .withTemplateName(d.templateName)
+              .withOptionSettings(readConfigFile(filePath))
+          )}
+          s.log.info("Config push: Finished creating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
         }
       }
     }
   }
 
-  val ebLocalConfigChangesTask = (eb.ebLocalConfig, eb.ebParentEnvironments, eb.ebClient, streams) map {
-    (ebLocalConfigs, parentEnvs, ebClient, s) => {
-      ebLocalConfigs.map { case (deployment, localOptionSettings) =>
-        val remoteEnvOpt = parentEnvs(deployment)
-        remoteEnvOpt match {
-          case Some(envDesc) => {
-            val remoteOptionSettings: Set[ConfigurationOptionSetting] = throttled { ebClient.describeConfigurationSettings(
-              new DescribeConfigurationSettingsRequest()
-              .withApplicationName(envDesc.getApplicationName)
-              .withEnvironmentName(envDesc.getEnvironmentName)
-            )}.getConfigurationSettings.flatMap(_.getOptionSettings).toSet
-            val locallyAddedSettings = (localOptionSettings -- remoteOptionSettings)
-            val locallyRemovedSettings = remoteOptionSettings.filterNot { ro => // filter out options that exist locally
-              localOptionSettings.find(lo => lo.getNamespace == ro.getNamespace && lo.getOptionName == ro.getOptionName).isDefined
-            }.map { o =>
-              new OptionSpecification().withNamespace(o.getNamespace).withOptionName(o.getOptionName)
-            }
-            deployment -> ConfigurationChanges(locallyAddedSettings, locallyRemovedSettings)
-          }
-          case None => {
-            deployment -> ConfigurationChanges(optionsToSetOnNewEnvironment = localOptionSettings.toSet)
-          }
+  def readConfigFile(file: File): Iterable[ConfigurationOptionSetting] = {
+    val settingsMap = jsonToOptionSettingsMap(file)
+    settingsMap.flatMap { case (namespace, options) =>
+        options.map { case (optionName, value) =>
+            new ConfigurationOptionSetting(namespace, optionName, value)
         }
-      }
-    }
-  }
-
-  val ebLocalConfigReadTask = (eb.ebDeployments, eb.ebClient, eb.ebConfigDirectory, streams) map {
-    (ebDeployments, ebClient, ebConfigDirectory, s) => {
-      ebDeployments.flatMap { deployment =>
-        val envConfig = ebConfigDirectory / deployment.appName / (deployment.envBaseName + ".env.config")
-        envConfig.exists match {
-          case true => {
-            val settingsMap = jsonToOptionSettingsMap(envConfig)
-            s.log.info("Using local config for deployment " + deployment.toString +
-                       " at path " + envConfig.getAbsolutePath)
-            Some(
-              deployment ->
-              settingsMap.flatMap { case (namespace, options) =>
-                options.map { case (optionName, value) =>
-                  new ConfigurationOptionSetting(namespace, optionName, value)
-                }
-              }.toSet
-            )
-          }
-          case false => {
-            s.log.warn("No local config found for deployment " + deployment.toString +
-                       " at path " + envConfig.getAbsolutePath)
-            None
-          }
-        }
-      }.toMap
-    }
-  }
-
-  val ebLocalConfigValidateTask = (eb.ebLocalConfigChanges, eb.ebClient, streams) map {
-    (ebLocalConfigChanges, ebClient, s) => {
-      var validationFailed = false
-      val validatedChanges = ebLocalConfigChanges.map { case (deployment, configChanges) =>
-        deployment -> {
-          val validationMessages = throttled { ebClient.validateConfigurationSettings(
-            new ValidateConfigurationSettingsRequest()
-              .withApplicationName(deployment.appName)
-              .withEnvironmentName(deployment.envBaseName)
-              .withOptionSettings(configChanges.optionsToSet)
-          )}.getMessages
-          validationMessages.foreach { msg =>
-            val logFn = ValidationSeverity.valueOf(Map("error"->"Error", "warning"->"Warning")(msg.getSeverity)) match {
-              case ValidationSeverity.Error => {
-                validationFailed = true
-                s.log.error (_: String)
-              }
-              case ValidationSeverity.Warning => s.log.warn (_: String)
-            }
-            logFn("For deployment " + deployment.appName + "/" + deployment.envBaseName + ": " +
-                  msg.getNamespace + ":" + msg.getOptionName + ": " +
-                  msg.getMessage + " (" + msg.getSeverity + ")")
-          }
-          configChanges
-        }
-      }.toMap
-      if (validationFailed) {
-        throw new Exception("Local configuration failed to validate. See messages above.")
-      } else {
-        validatedChanges
-      }
-    }
+    }.toSet
   }
 
   private val jsonMapper: ObjectMapper = {
@@ -443,4 +374,6 @@ trait ElasticBeanstalkCommands {
     java.lang.Thread.sleep(1500)
     block
   }
+
+  val tomcat7SolutionStackName = "64bit Amazon Linux running Tomcat 7"
 }
