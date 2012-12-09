@@ -30,8 +30,8 @@ trait ElasticBeanstalkCommands {
                 .withDestinationEnvironmentName(setUpEnv.getEnvironmentName)
             )
             s.log.info("Swap complete.")
-            s.log.info("Waiting for DNS TTL (60 seconds) until old environment is terminated...")
-            sleepForApproximately(60 * 1000)
+            s.log.info("Waiting for DNS TTL (60 seconds) plus 10 seconds until old environment is terminated...")
+            sleepForApproximately(70 * 1000)
             ebClient.terminateEnvironment(
               new TerminateEnvironmentRequest()
                 .withEnvironmentName(parentEnv.getEnvironmentName)
