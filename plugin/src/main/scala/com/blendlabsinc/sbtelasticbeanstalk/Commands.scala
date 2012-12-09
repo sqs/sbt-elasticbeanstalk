@@ -252,23 +252,27 @@ trait ElasticBeanstalkCommands {
     (deployments, parentEnvs, ebClient, configDir, s) => {
       def writeSettings(appName: String, configBaseName: String, settings: Set[ConfigurationOptionSetting]): File = {
         val file = configDir / appName / configBaseName
-        val settingsMap = settings.groupBy(_.getNamespace).mapValues {
-          os => os.map(o => (o.getOptionName -> o.getValue)).toMap.asJava
-        }.asJava
-        s.log.info("Config pull: writing settings to file '" + file + "'.")
-        IO.write(file, optionSettingsToJson(settingsMap), IO.utf8, false)
-        
+
         // Warn if an "_all" config file also exists.
         val allFile = configDir / "_all" / configBaseName
-        if (allFile.exists) {
+        val settingsNotInAllFile = if (allFile.exists) {
           s.log.warn(
-            "Config pull: a config file also exists at '" + allFile + "'. The file at '" + file + "' " +
-            "may be a duplicate. The eb-config-pull command doesn't yet check for this, so you should " +
-            "check manually and remove the non-_all file if it is a duplicate, to avoid confusion."
+            "Config pull: an _all config file also exists at '" + allFile + "', so we will only write " +
+            "settings that are not in the _all file to '" + file + "'."
           )
-        }
+          val settingsInAllFile = readConfigFile(allFile)
+          settings -- settingsInAllFile
+        } else settings
 
-        file
+        if (!settingsNotInAllFile.isEmpty) {
+          val settingsMap = settingsNotInAllFile.groupBy(_.getNamespace).mapValues {
+            os => os.map(o => (o.getOptionName -> o.getValue)).toMap.asJava
+          }.asJava
+
+          s.log.info("Config pull: writing settings to file '" + file + "'.")
+          IO.write(file, optionSettingsToJson(settingsMap), IO.utf8, false)
+          file
+        } else allFile
       }
 
       // * Filter out settings whose value is the default value for that setting.
@@ -313,7 +317,7 @@ trait ElasticBeanstalkCommands {
           new DescribeConfigurationOptionsRequest().withEnvironmentName(envName)
         )}.getOptions.toSet
 
-        val templateConfigSettings = readConfigFile(templateFileForDeployment(configDir, deployment))
+        val templateConfigSettings = readConfigFiles(templateFilesForDeployment(configDir, deployment))
         val configSettingsNotSpecifiedInTemplate = configSettings -- templateConfigSettings
 
         writeSettings(appName, deployment.envBaseName + ".env.conf", nonDefaultSettings(configSettingsNotSpecifiedInTemplate, configOpts))
@@ -325,21 +329,21 @@ trait ElasticBeanstalkCommands {
 
   val ebConfigPushTask = (eb.ebDeployments, eb.ebApiDescribeApplications, eb.ebConfigDirectory, eb.ebClient, streams) map {
     (deployments, allApps, configDir, ebClient, s) => {
-      def configTemplateExists(appName: String, templateName: String): Boolean = {
+      def remoteConfigTemplateExists(appName: String, templateName: String): Boolean = {
         allApps.find(_.getApplicationName == appName).get.getConfigurationTemplates.contains(templateName)
       }
       deployments.foreach { d =>
-        val tmplFilePath = templateFileForDeployment(configDir, d)
-        s.log.info("Config push: Using configuration template file '" + tmplFilePath + "' for app '" + d.appName + "'.")
-        if (configTemplateExists(d.appName, d.templateName)) {
+        val tmplFilePaths = templateFilesForDeployment(configDir, d)
+        s.log.info("Config push: Using configuration template files '" + tmplFilePaths + "' for app '" + d.appName + "'.")
+        if (remoteConfigTemplateExists(d.appName, d.templateName)) {
           s.log.info("Config push: Updating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
           throttled { ebClient.updateConfigurationTemplate(
             new UpdateConfigurationTemplateRequest()
               .withApplicationName(d.appName)
               .withTemplateName(d.templateName)
-              .withOptionSettings(readConfigFile(tmplFilePath))
+              .withOptionSettings(readConfigFiles(tmplFilePaths))
           )}
-          s.log.info("Config push: Finished updating configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePath + "'.")
+          s.log.info("Config push: Finished updating configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePaths + "'.")
         } else {
           s.log.info("Creating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
           throttled { ebClient.createConfigurationTemplate(
@@ -347,27 +351,44 @@ trait ElasticBeanstalkCommands {
               .withApplicationName(d.appName)
               .withSolutionStackName(tomcat7SolutionStackName)
               .withTemplateName(d.templateName)
-              .withOptionSettings(readConfigFile(tmplFilePath))
+              .withOptionSettings(readConfigFiles(tmplFilePaths))
           )}
-          s.log.info("Config push: Finished creating configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePath + "'.")
+          s.log.info("Config push: Finished creating configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePaths + "'.")
         }
       }
     }
   }
 
-  def templateFileForDeployment(configDir: File, deployment: Deployment): File = {
+  def templateFilesForDeployment(configDir: File, deployment: Deployment): List[File] = {
     val filename = deployment.templateName + ".tmpl.conf"
     val searchPaths = Seq(
       configDir / deployment.appName / filename,
       configDir / "_all" / filename
     )
-    val filePath = searchPaths.find(_.exists).getOrElse {
+    val paths = searchPaths.filter(_.exists)
+    if (paths.isEmpty) {
       throw new Exception(
         "Config push: Couldn't find configuration template file for deployment " + deployment + ".\n" +
           "Looked in: " + searchPaths.mkString(":")
       )
     }
-    filePath
+    paths.toList
+  }
+
+  // Read and merge the specified configuration files, with earlier files taking precedence over
+  // later files in the `files` list.
+  def readConfigFiles(files: List[File]): Set[ConfigurationOptionSetting] = {
+    val mergedSettings = collection.mutable.Map[(String, String), ConfigurationOptionSetting]()
+    files.foreach { file =>
+      val settings = readConfigFile(file)
+      settings.foreach { setting =>
+        val key = (setting.getNamespace, setting.getOptionName)
+        if (!mergedSettings.contains(key)) {
+          mergedSettings(key) = setting
+        }
+      }
+    }
+    mergedSettings.values.toSet
   }
 
   def readConfigFile(file: File): Set[ConfigurationOptionSetting] = {
