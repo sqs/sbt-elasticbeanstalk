@@ -11,7 +11,14 @@ case class Deployment(
   templateName: String,
   cname: String,
   environmentVariables: Map[String, String] = Map()
-)
+) {
+  if (cname.toLowerCase != cname) throw new Exception("Deployment CNAME should be lowercase for '" + cname + "'.")
+
+  def envNamePrefix: String = envBaseName + "-"
+
+  def environmentCorrespondsToThisDeployment(env: EnvironmentDescription): Boolean =
+    env.getEnvironmentName.startsWith(envNamePrefix)
+}
 
 object ElasticBeanstalkKeys {
   val ebS3BucketName = SettingKey[String]("ebS3BucketName", "S3 bucket which should contain uploaded WAR files")
@@ -29,11 +36,11 @@ object ElasticBeanstalkKeys {
   val ebConfigPull = TaskKey[List[File]]("eb-config-pull", "Downloads existing configurations for all project environments")
   val ebConfigPush = TaskKey[Unit]("eb-config-push", "Updates configurations for all project environments using local configs (that were pulled with eb-config-pull)")
 
-  val ebParentEnvironments = TaskKey[Map[Deployment,Option[EnvironmentDescription]]]("eb-parent-environments", "Returns existing environments corresponding to all project environments. If a project environment has a CNAME set, then it attempts to find the existing environment with that CNAME. If no CNAME is set, it finds the existing environment with the same environment name.")
+  val ebParentEnvironments = TaskKey[Map[Deployment,EnvironmentDescription]]("eb-parent-environments", "Returns all existing environments that correspond to project environments.")
 
-  val ebTargetEnvironments = TaskKey[Map[Deployment,EnvironmentDescription]]("eb-target-environments")
+  val ebTargetEnvironments = TaskKey[Map[Deployment,EnvironmentDescription]]("eb-target-environments", "Returns an the EnvironmentDescription describing the environment that should be created and deployed to.")
 
-  val ebExistingEnvironments = TaskKey[List[EnvironmentDescription]]("eb-existing-environments", "Describes all existing project environments (i.e., that are on Elastic Beanstalk)")
+  val ebExistingEnvironments = TaskKey[Map[Deployment,List[EnvironmentDescription]]]("eb-existing-environments", "Describes all existing environments (i.e., that are on Elastic Beanstalk) that correspond to project environments.")
 
   val ebCleanEnvironments = TaskKey[Unit]("eb-clean", "Terminates all old and unused environments")
 

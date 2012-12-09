@@ -20,7 +20,7 @@ trait ElasticBeanstalkCommands {
       Project.runTask(eb.ebWait, state)
       setUpEnvs.map { case (deployment, setUpEnv) =>
           // Swap and terminate the parent environment if it exists.
-          parentEnvs(deployment).map { parentEnv =>
+          parentEnvs.get(deployment).map { parentEnv =>
             s.log.info("Swapping environment CNAMEs for app " + deployment.appName + ", " +
               "with source " + parentEnv.getEnvironmentName + " and destination " +
               setUpEnv.getEnvironmentName + ".")
@@ -96,26 +96,30 @@ trait ElasticBeanstalkCommands {
   }
 
   val ebExistingEnvironmentsTask = (eb.ebDeployments, eb.ebClient, streams) map { (deployments, ebClient, s) =>
-    throttled { ebClient.describeEnvironments(
-      new DescribeEnvironmentsRequest()
-        .withEnvironmentNames(deployments.map(_.envBaseName))
-    )}.getEnvironments.filter { e =>
-      EnvironmentStatus.valueOf(e.getStatus) == EnvironmentStatus.Ready
-    }.toList
+    val existingEnvs = deployments.map(_.appName).toSet.map { (appName: String) =>
+      throttled { ebClient.describeEnvironments(
+        new DescribeEnvironmentsRequest()
+          .withApplicationName(appName)
+      )}
+    }.flatMap(_.getEnvironments).toList.filter { env =>
+      EnvironmentStatus.valueOf(env.getStatus) == EnvironmentStatus.Ready
+    }.groupBy { env =>
+      deployments.find(_.environmentCorrespondsToThisDeployment(env)).get
+    }
+    s.log.info("eb-existing-environments: " + existingEnvs.toString)
+    existingEnvs
   }
 
   val ageToTerminate = 1000*60*45 // msec (45 minutes)
   val ebCleanEnvironmentsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebClient, streams) map {
     (deployments, existingEnvs, ebClient, s) => {
-      val envsToClean = deployments.flatMap { d =>
-        existingEnvs.filter { e =>
-          def trimName(cname: String) = cname.replace(".elasticbeanstalk.com", "")
-          // The trailing dash means that this is NOT the currently active environment for the CNAME.
-          val isThisDeployment = e.getEnvironmentName.startsWith(d.envBaseName)
-          val isNotActiveCNAME = e.getCNAME != d.cname
-          val ageMsec = System.currentTimeMillis - e.getDateUpdated.getTime
-          isThisDeployment && isNotActiveCNAME && (ageMsec > ageToTerminate)
-        }
+      val envsToClean: Iterable[EnvironmentDescription] = existingEnvs.flatMap { case (deployment, envs) =>
+          envs.filter { env =>
+            def trimName(cname: String) = cname.replace(".elasticbeanstalk.com", "")
+            val isNotActiveCNAME = (env.getCNAME != deployment.cname)
+            val ageMsec = System.currentTimeMillis - env.getDateUpdated.getTime
+            isNotActiveCNAME && (ageMsec > ageToTerminate)
+          }
       }
       s.log.info("Going to terminate the following environments: \n\t" + envsToClean.mkString("\n\t"))
       if (envsToClean.isEmpty) s.log.info("  (no environments found eligible for cleaning/termination)")
@@ -182,24 +186,29 @@ trait ElasticBeanstalkCommands {
     s.log.info("All environments are Ready and Green.")
   }
 
-  val ebParentEnvironmentsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebClient, streams) map {
-    (ebDeployments, existingEnvs, ebClient, s) => {
-      ebDeployments.map { d =>
-        d -> existingEnvs.find(ee => ee.getCNAME == d.cname.toLowerCase)
+  val ebParentEnvironmentsTask = (eb.ebExistingEnvironments, eb.ebClient, streams) map {
+    (existingEnvs, ebClient, s) => {
+      val parentEnvs = existingEnvs.flatMap { case (deployment, envs) =>
+          envs.find(_.getCNAME == deployment.cname) match {
+            case Some(parentEnv) => Some(deployment -> parentEnv)
+            case None => None
+          }
       }.toMap
+      s.log.info("eb-parent-environments: " + parentEnvs.toString)
+      parentEnvs
     }
   }
 
-  val ebTargetEnvironmentsTask = (eb.ebParentEnvironments, eb.ebEnvironmentNameSuffix, streams) map {
-    (parentEnvs, envBaseNameSuffixFn, s) => {
-      parentEnvs.map { case (deployment, parentEnvOpt) =>
+  val ebTargetEnvironmentsTask = (eb.ebDeployments, eb.ebParentEnvironments, eb.ebEnvironmentNameSuffix, streams) map {
+    (deployments, parentEnvs, envBaseNameSuffixFn, s) => {
+      deployments.map { deployment =>
           deployment -> {
             val newEnvName = envBaseNameSuffixFn(deployment.envBaseName)
             new EnvironmentDescription()
               .withApplicationName(deployment.appName)
               .withEnvironmentName(newEnvName)
               .withSolutionStackName(tomcat7SolutionStackName)
-              .withCNAME(parentEnvOpt match {
+              .withCNAME(parentEnvs.get(deployment) match {
                 case Some(p) => newEnvName
                 case None => {
                   s.log.warn("Deployment is using CreateNewEnvironmentAndSwap scheme and environment " +
