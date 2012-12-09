@@ -46,8 +46,8 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebSetUpEnvForAppVersionTask = (eb.ebDeployments, eb.ebUploadSourceBundle, eb.ebParentEnvironments, eb.ebTargetEnvironments, eb.ebClient, streams) map {
-    (deployments, sourceBundle, parentEnvs, targetEnvs, ebClient, s) => {
+  val ebSetUpEnvForAppVersionTask = (eb.ebDeployments, eb.ebUploadSourceBundle, eb.ebTargetEnvironments, eb.ebClient, streams) map {
+    (deployments, sourceBundle, targetEnvs, ebClient, s) => {
       val versionLabel = sourceBundle.getS3Key
       val appVersions = targetEnvs.keys.map(_.appName).toSet.map { (appName: String) =>
         appName ->
@@ -60,10 +60,9 @@ trait ElasticBeanstalkCommands {
         ).getApplicationVersion
       }.toMap
 
-      parentEnvs.map { case (deployment, parentEnv) =>
+      targetEnvs.map { case (deployment, targetEnv) =>
           val appVersion = appVersions(deployment.appName)
           // TODO: check if remote config template is the same as the local one and warn/fail if not
-          val targetEnv = targetEnvs(deployment)
 
           val envVarSettings = deployment.environmentVariables.map { case (k, v) =>
               new ConfigurationOptionSetting("aws:elasticbeanstalk:application:environment", k, v)
@@ -214,7 +213,7 @@ trait ElasticBeanstalkCommands {
               .withCNAME(parentEnvs.get(deployment) match {
                 case Some(p) => newEnvName
                 case None => {
-                  s.log.warn("Deployment is using CreateNewEnvironmentAndSwap scheme and environment " +
+                  s.log.warn("Deployment environment for " + deployment.toString + " " +
                     "does not yet exist, so the environment will be created. There is no guarantee that " +
                     "the requested CNAME '" + deployment.cname + "' will be available, so you MUST " +
                     "check the CNAME that actually gets assigned and update your sbt Deployment " +
