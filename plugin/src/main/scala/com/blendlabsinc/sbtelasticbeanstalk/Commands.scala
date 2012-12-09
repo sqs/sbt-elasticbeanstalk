@@ -128,6 +128,8 @@ trait ElasticBeanstalkCommands {
         throw new Exception("`eb-clean` does not actually terminate environments unless you specify " +
                             "the following option: -Dsbt.elasticbeanstalk.dryrun=false.")
       }
+      s.log.warn("Sleeping for 15 seconds before terminating environments...")
+      java.lang.Thread.sleep(15 * 1000)
       envsToClean.foreach { env =>
         throttled { ebClient.terminateEnvironment(
           new TerminateEnvironmentRequest()
