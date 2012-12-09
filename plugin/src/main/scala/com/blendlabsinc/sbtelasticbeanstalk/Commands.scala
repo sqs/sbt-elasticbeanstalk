@@ -16,7 +16,7 @@ import scala.collection.JavaConverters._
 trait ElasticBeanstalkCommands {
   val ebDeployTask = (eb.ebSetUpEnvForAppVersion, eb.ebClient, eb.ebParentEnvironments, state, streams) map {
     (setUpEnvs, ebClient, parentEnvs, state, s) => {
-      java.lang.Thread.sleep(15000)
+      sleepForApproximately(15000)
       Project.runTask(eb.ebWait, state)
       setUpEnvs.map { case (deployment, setUpEnv) =>
           // Swap and terminate the parent environment if it exists.
@@ -31,7 +31,7 @@ trait ElasticBeanstalkCommands {
             )
             s.log.info("Swap complete.")
             s.log.info("Waiting for DNS TTL (60 seconds) until old environment is terminated...")
-            java.lang.Thread.sleep(60 * 1000)
+            sleepForApproximately(60 * 1000)
             ebClient.terminateEnvironment(
               new TerminateEnvironmentRequest()
                 .withEnvironmentName(parentEnv.getEnvironmentName)
@@ -167,13 +167,13 @@ trait ElasticBeanstalkCommands {
                     "Status: " + envDesc.getStatus + "   " +
                     "Health: " + envDesc.getHealth + "   " +
                     "(" + elapsedSec + "s)")
-              java.lang.Thread.sleep(15000)
+              sleepForApproximately(15000)
             }
           }
           case None => {
             s.log.warn("Environment " + deployment.appName + "/" + targetEnv.getEnvironmentName + " " +
                        "not found. Trying again after a delay...")
-            java.lang.Thread.sleep(15000)
+            sleepForApproximately(15000)
           }
         }
         if (elapsedSec > (20*60)) { // 20 minutes
@@ -394,9 +394,13 @@ trait ElasticBeanstalkCommands {
   }
 
   def throttled[T](block: => T): T = synchronized {
-    java.lang.Thread.sleep(1500)
+    sleepForApproximately(1500)
     block
   }
 
   val tomcat7SolutionStackName = "64bit Amazon Linux running Tomcat 7"
+
+  def sleepForApproximately(msec: Int) {
+    java.lang.Thread.sleep(msec + scala.util.Random.nextInt(msec/3))
+  }
 }
