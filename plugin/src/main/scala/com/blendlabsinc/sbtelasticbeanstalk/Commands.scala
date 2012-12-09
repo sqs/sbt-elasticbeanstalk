@@ -95,17 +95,12 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebExistingEnvironmentsTask = (eb.ebDeployments, eb.ebClient, streams) map { (ebDeployments, ebClient, s) =>
-    val environmentsByAppName = ebDeployments.groupBy(_.appName).mapValues(ds => ds.map(_.envBaseName))
-    environmentsByAppName.flatMap { case (appName, envBaseNames) =>
-      throttled { ebClient.describeEnvironments(
-        new DescribeEnvironmentsRequest()
-          .withApplicationName(appName)
-      ).getEnvironments.filter { e =>
-        envBaseNames.count(e.getEnvironmentName.startsWith(_)) > 0
-      }.filter { e =>
-        EnvironmentStatus.valueOf(e.getStatus) == EnvironmentStatus.Ready
-      }}
+  val ebExistingEnvironmentsTask = (eb.ebDeployments, eb.ebClient, streams) map { (deployments, ebClient, s) =>
+    throttled { ebClient.describeEnvironments(
+      new DescribeEnvironmentsRequest()
+        .withEnvironmentNames(deployments.map(_.envBaseName))
+    )}.getEnvironments.filter { e =>
+      EnvironmentStatus.valueOf(e.getStatus) == EnvironmentStatus.Ready
     }.toList
   }
 
