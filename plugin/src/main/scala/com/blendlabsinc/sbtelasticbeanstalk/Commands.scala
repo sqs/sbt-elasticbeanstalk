@@ -184,7 +184,8 @@ trait ElasticBeanstalkCommands {
           .withApplicationName(appName)
       )}
     }.flatMap(_.getEnvironments).toList.filter { env =>
-      EnvironmentStatus.valueOf(env.getStatus) == EnvironmentStatus.Ready
+      EnvironmentStatus.valueOf(env.getStatus) == EnvironmentStatus.Ready &&
+      deployments.find(_.environmentCorrespondsToThisDeployment(env)).isDefined
     }.groupBy { env =>
       deployments.find(_.environmentCorrespondsToThisDeployment(env)).get
     }
