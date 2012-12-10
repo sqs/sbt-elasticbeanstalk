@@ -115,7 +115,7 @@ trait ElasticBeanstalkCommands {
           val instanceAddresses = ec2Client.describeInstances(
             new ec2.DescribeInstancesRequest().withInstanceIds(instanceIds.toSet)
           ).getReservations.flatMap(_.getInstances).map { i =>
-            if (i.getPublicDnsName != null) i.getPublicDnsName else i.getPrivateIpAddress
+            if (i.getPublicDnsName != null && i.getPublicDnsName != "") i.getPublicDnsName else i.getPrivateIpAddress
           }
 
           s.log.info("Quick update: Found IP addresses " + instanceAddresses)
