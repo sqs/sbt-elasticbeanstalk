@@ -35,6 +35,8 @@ object Build extends Build {
     libraryDependencies ++= Seq(
       "com.fasterxml.jackson.core" % "jackson-core" % "2.1.1",
       "com.fasterxml.jackson.core" % "jackson-databind" % "2.1.1",
+      "net.schmizz" % "sshj" % "0.8.1",
+      "org.bouncycastle" % "bcprov-jdk16" % "1.46",
       "com.github.play2war" % "play2-war-plugin" % "0.9a-SNAPSHOT" % "provided->default(compile)" extra ("scalaVersion" -> "2.9.2", "sbtVersion" -> "0.12")
     )
   ).dependsOn(sbtElasticBeanstalkCore).aggregate(sbtElasticBeanstalkCore)

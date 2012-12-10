@@ -1,5 +1,6 @@
 package com.blendlabsinc.sbtelasticbeanstalk
 
+import com.amazonaws.services.ec2.{ model => ec2 }
 import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
 import com.amazonaws.services.elasticbeanstalk.model._
 import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
@@ -92,6 +93,85 @@ trait ElasticBeanstalkCommands {
             "Status: " + res.getHealth())
           deployment -> (new EnvironmentDescription().withEnvironmentName(res.getEnvironmentName).withCNAME(res.getCNAME))
       }.toMap
+    }
+  }
+
+  val ebQuickUpdateTask = (eb.ebDeployments, eb.ebParentEnvironments, eb.ebUploadSourceBundle, eb.ebClient, eb.ec2Client, eb.ebRegion, streams) map {
+    (deployments, parentEnvs, sourceBundle, ebClient, ec2Client, awsRegion, s) => {
+      deployments.foreach { d =>
+        if (!parentEnvs.contains(d)) {
+          s.log.warn("Quick update: Can't update deployment " + d.toString + " because it has no running environment.")
+        } else {
+          val parentEnv = parentEnvs(d)
+
+          s.log.info("Quick update: Describing environment resources for environment '" + parentEnv.getEnvironmentName + "'.")
+          val instanceIds = ebClient.describeEnvironmentResources(
+            new DescribeEnvironmentResourcesRequest().withEnvironmentName(parentEnv.getEnvironmentName)
+          ).getEnvironmentResources.getInstances.map(_.getId)
+
+          s.log.info("Quick update: Looking up IP addresses for instances: " + instanceIds + ".")
+          val instanceAddresses = ec2Client.describeInstances(
+            new ec2.DescribeInstancesRequest().withInstanceIds(instanceIds.toSet)
+          ).getReservations.flatMap(_.getInstances).map { i =>
+            if (i.getPublicDnsName != null) i.getPublicDnsName else i.getPrivateIpAddress
+          }
+
+          s.log.info("Quick update: Found IP addresses " + instanceAddresses)
+          for (instanceAddress <- instanceAddresses) {
+            s.log.info("SSHing to " + instanceAddress + " to update " + d.envBaseName + "...")
+            val warUrl = {
+              val s3Client = AWS.s3Client(awsRegion)
+              s3Client.generatePresignedUrl(sourceBundle.getS3Bucket, sourceBundle.getS3Key, new java.util.Date(System.currentTimeMillis + 1000*60*60*24)).toString
+            }
+            execRemote(instanceAddress, List(
+              "curl -o /tmp/latest.war '" + warUrl + "'",
+              "sudo service tomcat7 stop",
+              "sudo rm -rf /usr/share/tomcat7/webapps/ROOT",
+              "sudo bash -c 'cd /usr/share/tomcat7/webapps && mkdir ROOT && cd ROOT && unzip /tmp/latest.war && chown -R tomcat:tomcat /usr/share/tomcat7/webapps'",
+              "sudo service tomcat7 start"
+            ))
+          }
+        }
+      }
+    }
+  }
+
+  def execRemote(host: String, commands: List[String]) {
+    import java.io.{ File, IOException }
+    import java.security.PublicKey
+    import java.util.concurrent.TimeUnit
+    import net.schmizz.sshj.SSHClient
+    import net.schmizz.sshj.common.IOUtils
+    import net.schmizz.sshj.connection.channel.direct.Session
+    import net.schmizz.sshj.connection.channel.direct.Session.Command
+    import net.schmizz.sshj.transport.verification.HostKeyVerifier
+    import scala.io.Source
+
+    val keyFile = new File(System.getProperty("user.home"), ".ssh/blendlive.pem").getAbsolutePath
+
+    val ssh = new SSHClient()
+    ssh.addHostKeyVerifier(new HostKeyVerifier() {
+      def verify(arg0: String, arg1: Int, arg2: PublicKey): Boolean = true
+    })
+
+    ssh.connect(host)
+    try {
+      ssh.authPublickey("ec2-user", keyFile)
+      for (command <- commands) {
+        val session = ssh.startSession()
+        try {
+          session.allocateDefaultPTY()
+          println("Executing command on remote host " + host + ": " + command)
+          val cmd = session.exec(command)
+          cmd.join(60, TimeUnit.SECONDS)
+          val out = Source.fromInputStream(cmd.getInputStream, "UTF-8").getLines.mkString("\n")
+          println("  --> Output: " + out)
+        } finally {
+          session.close()
+        }
+      }
+    } finally {
+      ssh.disconnect()
     }
   }
 

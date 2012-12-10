@@ -17,6 +17,7 @@ trait ElasticBeanstalkSettings {
       name + "-" + System.getenv("USER").take(3) + uniq.take(3)
     },
     ebDeploy <<= ebDeployTask,
+    ebQuickUpdate <<= ebQuickUpdateTask,
     ebSetUpEnvForAppVersion <<= ebSetUpEnvForAppVersionTask,
     ebWait <<= ebWaitForEnvironmentsTask,
     ebParentEnvironments <<= ebParentEnvironmentsTask,
@@ -28,6 +29,7 @@ trait ElasticBeanstalkSettings {
     ebConfigPush <<= ebConfigPushTask,
     ebConfigDirectory <<= baseDirectory / "eb-deploy",
     ebClient <<= (ebRegion) map { (region) => AWS.elasticBeanstalkClient(region) },
+    ec2Client <<= (ebRegion) map { (region) => AWS.ec2Client(region) },
     ebApiDescribeApplications <<= ebApiDescribeApplicationsTask,
     ebApiDescribeEnvironments <<= ebApiDescribeEnvironmentsTask,
     commands ++= Seq(ebApiRestartAppServer),

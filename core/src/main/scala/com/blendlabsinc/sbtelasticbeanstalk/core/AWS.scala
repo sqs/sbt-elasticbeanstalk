@@ -1,7 +1,9 @@
 package com.blendlabsinc.sbtelasticbeanstalk.core
 
 import com.amazonaws.auth.PropertiesCredentials
+import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
+import com.amazonaws.services.s3.AmazonS3Client
 import java.io.File
 
 object AWS {
@@ -16,9 +18,21 @@ object AWS {
     new PropertiesCredentials(file)
   }
 
+  def ec2Client(region: String): AmazonEC2Client = {
+    val c = new AmazonEC2Client(awsCredentials)
+    c.setEndpoint("https://ec2." + region + ".amazonaws.com")
+    c
+  }
+
   def elasticBeanstalkClient(region: String): AWSElasticBeanstalkClient = {
     val c = new AWSElasticBeanstalkClient(awsCredentials)
     c.setEndpoint("https://elasticbeanstalk." + region + ".amazonaws.com")
+    c
+  }
+
+  def s3Client(region: String): AmazonS3Client = {
+    val c = new AmazonS3Client(awsCredentials)
+    c.setEndpoint("https://s3-" + region + ".amazonaws.com")
     c
   }
 }
