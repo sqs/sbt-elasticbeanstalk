@@ -20,7 +20,7 @@ addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9-RC1")
 
 resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns)
 
-addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk" % "0.0.5-SNAPSHOT")
+addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk" % "0.0.6-SNAPSHOT")
 ```
 
 (Note: You need the 0.9-SNAPSHOT build of [play2-war-plugin][play2war], which supports Play 2.1 and is built from git master. For convenience, is hosted on the SQS Ivy repository included above.)
@@ -76,7 +76,9 @@ Once you've configured sbt-elasticbeanstalk as described above, run the sbt `eb-
 Features
 --------
 
-**Configuration pull**: Run `eb-config-pull` at the sbt console to download environment configuration into `eb-deploy/<app>/<env>.env.config` files.
+**Configuration pull**: Run `eb-config-pull` at the sbt console to download environment configuration into `eb-deploy/<app>/<env>.env.conf` and `eb-deploy/<app><tmpl>.tmpl.conf` files.
+
+**Quick update**: Run `eb-quick-update` at the sbt console to perform a quick update (an in-place swap of the WAR and a Tomcat7 restart).
 
 **Configuration push**: Run `eb-config-push` at the sbt console to push local environment configurations to Elastic Beanstalk.
 
@@ -92,6 +94,7 @@ Features
 Changelog
 ---------
 
+* 0.0.6: Better, template-aware `eb-config-push` and `eb-config-pull`; added `eb-quick-update`
 * 0.0.5: Add configuration pushing `eb-config-push` and validation `eb-local-config-validate`.
 * 0.0.4: Add configuration pulling `eb-config-pull`; add `eb-wait` to wait until deployed; add `eb-api-describe-applications`, `eb-api-describe-environments`, and `eb-api-restart-app-server` tasks.
 * 0.0.3: Can set environment variables for each deployment; added Java6 check
