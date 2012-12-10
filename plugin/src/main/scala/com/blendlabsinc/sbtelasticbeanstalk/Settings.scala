@@ -24,6 +24,7 @@ trait ElasticBeanstalkSettings {
     ebTargetEnvironments <<= ebTargetEnvironmentsTask,
     ebExistingEnvironments <<= ebExistingEnvironmentsTask,
     ebCleanEnvironments <<= ebCleanEnvironmentsTask,
+    ebCleanAppVersions <<= ebCleanAppVersionsTask,
     ebUploadSourceBundle <<= ebUploadSourceBundleTask,
     ebConfigPull <<= ebConfigPullTask,
     ebConfigPush <<= ebConfigPushTask,

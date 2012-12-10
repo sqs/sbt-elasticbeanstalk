@@ -223,6 +223,47 @@ trait ElasticBeanstalkCommands {
     }
   }
 
+  val ebCleanAppVersionsTask = (eb.ebDeployments, eb.ebExistingEnvironments, eb.ebClient, streams) map {
+    (deployments, existingEnvs, ebClient, s) => {
+      def appVersionIsNotInUse(appName: String, versionLabel: String): Boolean = {
+        existingEnvs.values.flatten.count { env =>
+          env.getApplicationName == appName && env.getVersionLabel == versionLabel
+        } == 0
+      }
+      var i = 0
+      deployments.map(_.appName).foreach { appName =>
+        s.log.info("Describing app versions for app '" + appName + "'.")
+        val appVersions = throttled { ebClient.describeApplicationVersions(
+          new DescribeApplicationVersionsRequest().withApplicationName(appName)
+        )}.getApplicationVersions
+        appVersions.foreach { appVersion =>
+          val age = System.currentTimeMillis - appVersion.getDateUpdated.getTime
+          if (appVersionIsNotInUse(appName, appVersion.getVersionLabel) && age > (1000 * 60 * 60 * 12)/*12 hours*/) {
+            i += 1
+            s.log.info("Deleting app version '" + appVersion.getVersionLabel + "' in app '" + appName + "'.")
+            def deleteAppVersion(deleteSourceBundle: Boolean) {
+              throttled { ebClient.deleteApplicationVersion(
+                new DeleteApplicationVersionRequest()
+                  .withApplicationName(appName)
+                  .withDeleteSourceBundle(deleteSourceBundle)
+                  .withVersionLabel(appVersion.getVersionLabel)
+              )}
+            }
+            try {
+              deleteAppVersion(true)
+            } catch {
+              case e: Exception => deleteAppVersion(false)
+            }
+            s.log.info("Finished deleting app version '" + appVersion.getVersionLabel + "' in app '" + appName + "'.")
+          } else {
+            s.log.info("Not deleting app version '" + appVersion.getVersionLabel + "' in app '" + appName + "' because it is either in use or not old enough.")
+          }
+        }
+      }
+      s.log.info("Finished deleting " + i + " old app versions.")
+    }
+  }
+
   val ebWaitForEnvironmentsTask = (eb.ebTargetEnvironments, eb.ebClient, streams) map { (targetEnvs, ebClient, s) =>
     targetEnvs.foreach { case (deployment, targetEnv) =>
       val startTime = System.currentTimeMillis

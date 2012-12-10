@@ -85,6 +85,8 @@ Features
 
 **Wait until deployed**: Run `eb-wait` to wait until all project environments are deployed (i.e., Ready status and Green health).
 
+**Cleaning**: Run `eb-clean` to terminate old, inactive environments; run `eb-clean-app-versions` to delete old and, unused app versions.
+
 **.ebextensions**: [Play2-war-plugin][play2war]'s `webappResource` sbt key is set to `war` by default, so any directories or files in the `war/` directory will be added to the generated WAR file. The included Play2 sample app has an example `war/.ebextensions` directory that sets some Elastic Beanstalk configuration settings.
 
 **Environment variables**: You can specify an `environmentVariables` map in each `Deployment` that gets passed to your EB environments as environment variables.
