@@ -461,25 +461,24 @@ trait ElasticBeanstalkCommands {
         val tmplFilePaths = templateFilesForDeployment(configDir, d)
         s.log.info("Config push: Using configuration template files '" + tmplFilePaths + "' for app '" + d.appName + "'.")
         if (remoteConfigTemplateExists(d.appName, d.templateName)) {
-          s.log.info("Config push: Updating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
-          throttled { ebClient.updateConfigurationTemplate(
-            new UpdateConfigurationTemplateRequest()
+          s.log.info("Config push: Deleting previous configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
+          throttled { ebClient.deleteConfigurationTemplate(
+            new DeleteConfigurationTemplateRequest()
               .withApplicationName(d.appName)
               .withTemplateName(d.templateName)
-              .withOptionSettings(readConfigFiles(tmplFilePaths))
           )}
-          s.log.info("Config push: Finished updating configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePaths + "'.")
-        } else {
-          s.log.info("Creating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
-          throttled { ebClient.createConfigurationTemplate(
-            new CreateConfigurationTemplateRequest()
-              .withApplicationName(d.appName)
-              .withSolutionStackName(tomcat7SolutionStackName)
-              .withTemplateName(d.templateName)
-              .withOptionSettings(readConfigFiles(tmplFilePaths))
-          )}
-          s.log.info("Config push: Finished creating configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePaths + "'.")
+          s.log.info("Config push: Finished deleting configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePaths + "'.")
         }
+        s.log.info("Creating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
+        throttled { ebClient.createConfigurationTemplate(
+          new CreateConfigurationTemplateRequest()
+            .withApplicationName(d.appName)
+            .withSolutionStackName(tomcat7SolutionStackName)
+            .withTemplateName(d.templateName)
+            .withOptionSettings(readConfigFiles(tmplFilePaths))
+        )}
+        s.log.info("Config push: Finished creating configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePaths + "'.")
+
       }
     }
   }
