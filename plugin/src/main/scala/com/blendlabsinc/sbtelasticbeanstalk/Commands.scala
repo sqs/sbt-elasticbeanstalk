@@ -75,7 +75,8 @@ trait ElasticBeanstalkCommands {
               "  EB app: " + deployment.appName + "\n" +
               "  EB environment name: " + targetEnv.getEnvironmentName + "\n" +
               "  CNAME: " + targetEnv.getCNAME + "\n" +
-              "  Config template: " + deployment.templateName
+              "  Config template: " + deployment.templateName + "\n" +
+              "  Environment vars: " + deployment.environmentVariables.toString
           )
 
           val res = ebClient.createEnvironment(
@@ -85,6 +86,7 @@ trait ElasticBeanstalkCommands {
               .withVersionLabel(appVersion.getVersionLabel)
               .withCNAMEPrefix(targetEnv.getCNAME)
               .withTemplateName(deployment.templateName)
+              .withOptionSettings(envVarSettings)
           )
           s.log.info("Elastic Beanstalk app version update complete. The new version will not be available " +
             "until the new environment is ready. When the new environment is ready, its " +
