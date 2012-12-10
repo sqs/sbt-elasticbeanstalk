@@ -44,6 +44,7 @@ val main = play.Project(appName, appVersion, appDependencies).settings(
     Deployment(
       appName = "some-app-name",
       envNamePrefix = "some-environment-name",
+      templateName = "my-template",
       environmentVariables = Map("MyFavoriteColor" -> "blue")
     )
   ),
