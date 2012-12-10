@@ -18,7 +18,7 @@ trait ElasticBeanstalkCommands {
   val ebDeployTask = (eb.ebSetUpEnvForAppVersion, eb.ebClient, eb.ebParentEnvironments, state, streams) map {
     (setUpEnvs, ebClient, parentEnvs, state, s) => {
       sleepForApproximately(15000)
-      Project.runTask(eb.ebWait, state)
+      waitForEnvironments(setUpEnvs, ebClient, s)
       setUpEnvs.map { case (deployment, setUpEnv) =>
           // Swap and terminate the parent environment if it exists.
           parentEnvs.get(deployment).map { parentEnv =>
@@ -265,12 +265,17 @@ trait ElasticBeanstalkCommands {
   }
 
   val ebWaitForEnvironmentsTask = (eb.ebTargetEnvironments, eb.ebClient, streams) map { (targetEnvs, ebClient, s) =>
-    targetEnvs.foreach { case (deployment, targetEnv) =>
+    waitForEnvironments(targetEnvs, ebClient, s)
+  }
+
+  def waitForEnvironments(envs: Map[Deployment,EnvironmentDescription], ebClient: AWSElasticBeanstalkClient, s: sbt.std.TaskStreams[_]) = {
+    envs.foreach { case (deployment, targetEnv) =>
       val startTime = System.currentTimeMillis
       var logged = false
       var done = false
       while (!done) {
         val elapsedSec = (System.currentTimeMillis - startTime)/1000
+        sleepForApproximately(5000)
         val envDesc = throttled { ebClient.describeEnvironments(
           new DescribeEnvironmentsRequest()
             .withApplicationName(deployment.appName)
@@ -309,7 +314,7 @@ trait ElasticBeanstalkCommands {
         }
       }
     }
-    s.log.info("All environments are Ready and Green.")
+    s.log.info("All environments are Ready and Green: " + envs.keys.toString + ".")
   }
 
   val ebParentEnvironmentsTask = (eb.ebExistingEnvironments, eb.ebClient, streams) map {
