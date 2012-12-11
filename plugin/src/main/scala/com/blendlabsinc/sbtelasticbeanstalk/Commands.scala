@@ -358,6 +358,17 @@ trait ElasticBeanstalkCommands {
 
   val ebUploadSourceBundleTask = (eb.ebAppBundle, eb.ebS3BucketName, eb.ebClient, eb.ebRequireJava6, streams) map {
     (appBundle, s3BucketName, ebClient, ebRequireJava6, s) => {
+
+      // Returns a File object corresponding to the .zip file of directory `dir`.
+      def zipDirectory(dir: File): File = {
+        import sbt.IO
+        s.log.info("Zipping up directory '" + dir.getAbsolutePath + "'.")
+        val tmpZipFile = new File(IO.createTemporaryDirectory, dir.getName + ".zip")
+        IO.zip(IO.listFiles(dir).map { f => (f, IO.relativize(dir, f).get) }, tmpZipFile)
+        s.log.info("Finished zipping up directory '" + dir.getAbsolutePath + "' to '" + tmpZipFile.getAbsolutePath + " (" + (tmpZipFile.length/1024) + " kb compressed).")
+        tmpZipFile
+      }
+
       if (ebRequireJava6 && System.getProperty("java.specification.version") != "1.6") {
         throw new Exception(
           "ebRequireJava6 := true, but you are currently running in Java " +
@@ -370,11 +381,15 @@ trait ElasticBeanstalkCommands {
         )
       }
 
-      s.log.info("Uploading " + appBundle.getName + " (" + (appBundle.length/1024/1024) + " MB) " +
+      val bundleFile = if (appBundle.isDirectory) {
+        zipDirectory(appBundle)
+      } else appBundle
+
+      s.log.info("Uploading " + bundleFile.getName + " (" + (bundleFile.length/1024/1024) + " MB) " +
                  "to Amazon S3 bucket '" + s3BucketName + "'")
-      val u = new SourceBundleUploader(appBundle, s3BucketName, AWS.awsCredentials)
+      val u = new SourceBundleUploader(bundleFile, s3BucketName, AWS.awsCredentials)
       val bundleLocation = u.upload()
-      s.log.info("WAR file upload complete.")
+      s.log.info("App bundle file upload complete: '" + bundleFile.getName + "'.")
       bundleLocation
     }
   }
