@@ -24,7 +24,7 @@ object ApplicationBuild extends Build {
         environmentVariables = Map("MyFavoriteColor" -> "blue")
       )
     ),
-    ebRegion := "us-west-1"
+    ebRegion := "us-west-2"
   )
     .settings(ElasticBeanstalk.elasticBeanstalkSettings: _*)
     .settings(Play2WarPlugin.play2WarSettings: _*)
