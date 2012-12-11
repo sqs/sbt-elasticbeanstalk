@@ -17,7 +17,7 @@ object ApplicationBuild extends Build {
     ebS3BucketName := "sbt-elasticbeanstalk-test",
     ebDeployments := Seq(
       Deployment(
-        appName = "sbt-elasticbeanstalk-sample-Play2-app",
+        appName = "sbteb-sample",
         envBaseName = "test-swap",
         templateName = "play2-sample",
         cname = "sbt-eb-sample-play2-swap.elasticbeanstalk.com",
