@@ -29,4 +29,24 @@ object ApplicationBuild extends Build {
     .settings(ElasticBeanstalk.elasticBeanstalkSettings: _*)
     .settings(Play2WarPlugin.play2WarSettings: _*)
     .settings(ebRequireJava6 := false)
+
+  val pythonApp = Project(
+    id = "python-app",
+    base = file("python-app"), // If you pass in a directory, it will be zipped up and deployed.
+    settings = Project.defaultSettings ++ ElasticBeanstalk.elasticBeanstalkSettings ++ Seq(
+      ebRequireJava6 := false,
+      ebS3BucketName := "sbt-elasticbeanstalk-test",
+      ebRegion := "us-west-2",
+      ebAppBundle := file("python-app"),
+      ebDeployments := Seq(
+        Deployment(
+          appName = "sbteb-sample",
+          envBaseName = "test-python-app",
+          templateName = "python-app",
+          cname = "sbt-eb-sample-python-app.elasticbeanstalk.com",
+          solutionStackName = "64bit Amazon Linux running Python"
+        )
+      )
+    )
+  )
 }
