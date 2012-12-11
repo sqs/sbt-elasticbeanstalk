@@ -466,7 +466,8 @@ trait ElasticBeanstalkCommands {
       deployments.foreach { d =>
         val tmplFilePaths = templateFilesForDeployment(configDir, d)
         s.log.info("Config push: Using configuration template files '" + tmplFilePaths + "' for app '" + d.appName + "'.")
-        if (remoteConfigTemplateExists(d.appName, d.templateName)) {
+
+        def deleteConfigTemplate() {
           s.log.info("Config push: Deleting previous configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
           throttled { ebClient.deleteConfigurationTemplate(
             new DeleteConfigurationTemplateRequest()
@@ -475,16 +476,34 @@ trait ElasticBeanstalkCommands {
           )}
           s.log.info("Config push: Finished deleting configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePaths + "'.")
         }
-        s.log.info("Creating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
-        throttled { ebClient.createConfigurationTemplate(
-          new CreateConfigurationTemplateRequest()
-            .withApplicationName(d.appName)
-            .withSolutionStackName(d.solutionStackName)
-            .withTemplateName(d.templateName)
-            .withOptionSettings(readConfigFiles(tmplFilePaths))
-        )}
-        s.log.info("Config push: Finished creating configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePaths + "'.")
 
+        def createConfigTemplate() {
+          s.log.info("Creating configuration template '" + d.templateName + "' for app '" + d.appName + "'.")
+          throttled { ebClient.createConfigurationTemplate(
+            new CreateConfigurationTemplateRequest()
+              .withApplicationName(d.appName)
+              .withSolutionStackName(d.solutionStackName)
+              .withTemplateName(d.templateName)
+              .withOptionSettings(readConfigFiles(tmplFilePaths))
+          )}
+          s.log.info("Config push: Finished creating configuration template '" + d.templateName + "' for app '" + d.appName + "' at path '" + tmplFilePaths + "'.")
+        }
+
+        if (remoteConfigTemplateExists(d.appName, d.templateName)) {
+          deleteConfigTemplate()
+        }
+
+        try {
+          createConfigTemplate()
+        } catch {
+          case e: Exception => {
+            // Workaround for issue where configuration templates are not being returned in describeApplications,
+            // and so we don't delete existing templates before recreating them.
+            // Status Code: 400, AWS Service: AWSElasticBeanstalk, AWS Request ID: 1dbde02e-439f-11e2-87a8-696de970b971, AWS Error Code: InvalidParameterValue, AWS Error Message: Configuration Template play2-sample already exists.
+            deleteConfigTemplate()
+            createConfigTemplate()
+          }
+        }
       }
     }
   }
