@@ -25,6 +25,8 @@ object ElasticBeanstalkKeys {
   val ebS3BucketName = SettingKey[String]("ebS3BucketName", "S3 bucket which should contain uploaded WAR files")
   val ebDeployments = SettingKey[Seq[Deployment]]("eb-deployments", "List of Elastic Beanstalk deployment targets")
 
+  val ebAppBundle = TaskKey[File]("eb-app-bundle", "The application file ('source bundle' in AWS terms) to deploy.")
+
   val ebEnvironmentNameSuffix = SettingKey[Function1[String,String]]("eb-environment-name-suffix", "Function that returns an environment name suffixed with a unique string")
 
   val ebRegion = SettingKey[String]("ebRegion", "Elastic Beanstalk region (e.g., us-west-1)")

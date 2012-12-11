@@ -6,7 +6,6 @@ import com.amazonaws.services.elasticbeanstalk.model._
 import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
 import com.blendlabsinc.sbtelasticbeanstalk.core.{ AWS, SourceBundleUploader }
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.github.play2war.plugin.Play2WarKeys
 import java.io.File
 import sbt.Keys.{ state, streams }
 import sbt.Path._
@@ -98,6 +97,7 @@ trait ElasticBeanstalkCommands {
     }
   }
 
+  // TODO: quick update only works for WARs with Tomcat
   val ebQuickUpdateTask = (eb.ebDeployments, eb.ebParentEnvironments, eb.ebUploadSourceBundle, eb.ebClient, eb.ec2Client, eb.ebRegion, streams) map {
     (deployments, parentEnvs, sourceBundle, ebClient, ec2Client, awsRegion, s) => {
       deployments.foreach { d =>
@@ -356,8 +356,8 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebUploadSourceBundleTask = (Play2WarKeys.war, eb.ebS3BucketName, eb.ebClient, eb.ebRequireJava6, streams) map {
-    (war, s3BucketName, ebClient, ebRequireJava6, s) => {
+  val ebUploadSourceBundleTask = (eb.ebAppBundle, eb.ebS3BucketName, eb.ebClient, eb.ebRequireJava6, streams) map {
+    (appBundle, s3BucketName, ebClient, ebRequireJava6, s) => {
       if (ebRequireJava6 && System.getProperty("java.specification.version") != "1.6") {
         throw new Exception(
           "ebRequireJava6 := true, but you are currently running in Java " +
@@ -370,9 +370,9 @@ trait ElasticBeanstalkCommands {
         )
       }
 
-      s.log.info("Uploading " + war.getName + " (" + (war.length/1024/1024) + " MB) " +
+      s.log.info("Uploading " + appBundle.getName + " (" + (appBundle.length/1024/1024) + " MB) " +
                  "to Amazon S3 bucket '" + s3BucketName + "'")
-      val u = new SourceBundleUploader(war, s3BucketName, AWS.awsCredentials)
+      val u = new SourceBundleUploader(appBundle, s3BucketName, AWS.awsCredentials)
       val bundleLocation = u.upload()
       s.log.info("WAR file upload complete.")
       bundleLocation
