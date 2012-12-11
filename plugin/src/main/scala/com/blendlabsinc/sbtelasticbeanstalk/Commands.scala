@@ -338,7 +338,7 @@ trait ElasticBeanstalkCommands {
             new EnvironmentDescription()
               .withApplicationName(deployment.appName)
               .withEnvironmentName(newEnvName)
-              .withSolutionStackName(tomcat7SolutionStackName)
+              .withSolutionStackName(deployment.solutionStackName)
               .withCNAME(parentEnvs.get(deployment) match {
                 case Some(p) => newEnvName
                 case None => {
@@ -479,7 +479,7 @@ trait ElasticBeanstalkCommands {
         throttled { ebClient.createConfigurationTemplate(
           new CreateConfigurationTemplateRequest()
             .withApplicationName(d.appName)
-            .withSolutionStackName(tomcat7SolutionStackName)
+            .withSolutionStackName(d.solutionStackName)
             .withTemplateName(d.templateName)
             .withOptionSettings(readConfigFiles(tmplFilePaths))
         )}
@@ -549,8 +549,6 @@ trait ElasticBeanstalkCommands {
     sleepForApproximately(1500)
     block
   }
-
-  val tomcat7SolutionStackName = "64bit Amazon Linux running Tomcat 7"
 
   def sleepForApproximately(msec: Int) {
     java.lang.Thread.sleep(msec + scala.util.Random.nextInt(msec/3))

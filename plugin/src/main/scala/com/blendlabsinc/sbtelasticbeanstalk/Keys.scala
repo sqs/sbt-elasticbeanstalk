@@ -11,7 +11,8 @@ case class Deployment(
   envBaseName: String,
   templateName: String,
   cname: String,
-  environmentVariables: Map[String, String] = Map()
+  environmentVariables: Map[String, String] = Map(),
+  solutionStackName: String = "64bit Amazon Linux running Tomcat 7"
 ) {
   if (cname.toLowerCase != cname) throw new Exception("Deployment CNAME should be lowercase for '" + cname + "'.")
 
