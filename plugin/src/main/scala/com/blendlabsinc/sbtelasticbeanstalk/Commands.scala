@@ -365,7 +365,8 @@ trait ElasticBeanstalkCommands {
           "Elastic Beanstalk is incompatible with Java7. You should use Java6 to compile " +
           "and deploy WARs. You can also set ebRequireJava6 := false in " +
           "your sbt settings to suppress this warning, but beware that Java7-compiled WARs " +
-          "currently fail in strange ways on Elastic Beanstalk."
+          "currently fail in strange ways on Elastic Beanstalk. See " +
+          "http://qslack.com/2012/12/using-java-1-7-on-amazon-aws-elastic-beanstalk/ for a workaround."
         )
       }
 
