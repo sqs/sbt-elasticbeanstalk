@@ -28,4 +28,5 @@ object ApplicationBuild extends Build {
   )
     .settings(ElasticBeanstalk.elasticBeanstalkSettings: _*)
     .settings(Play2WarPlugin.play2WarSettings: _*)
+    .settings(ebRequireJava6 := false)
 }
