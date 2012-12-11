@@ -517,7 +517,7 @@ trait ElasticBeanstalkCommands {
         }
       }
     }
-    mergedSettings.values.toSet
+    mergedSettings.values.filter(_.getValue != null).toSet
   }
 
   def readConfigFile(file: File): Set[ConfigurationOptionSetting] = {
