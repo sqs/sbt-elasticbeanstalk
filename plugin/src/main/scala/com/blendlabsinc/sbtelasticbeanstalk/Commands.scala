@@ -35,7 +35,7 @@ trait ElasticBeanstalkCommands {
           val (deployment, setUpEnv) = setUpEnvsSeq(i)
           val logFn = if (result.isDefined) (s.log.info (_: String)) else (s.log.error (_: String))
           logFn(
-            "% 2d. " + deployment.appName + ":" + setUpEnv.getEnvironmentName + " " +
+            i.toString + ". " + deployment.appName + ":" + setUpEnv.getEnvironmentName + " " +
               (if (result.isDefined) "deployed successfully" else "failed to deploy")
           )
       }
