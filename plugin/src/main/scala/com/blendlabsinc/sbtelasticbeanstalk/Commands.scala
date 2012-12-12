@@ -201,7 +201,7 @@ trait ElasticBeanstalkCommands {
     }.groupBy { env =>
       deployments.find(_.environmentCorrespondsToThisDeployment(env)).get
     }
-    s.log.info("eb-existing-environments: " + existingEnvs.toString)
+    s.log.debug("eb-existing-environments: " + existingEnvs.toString)
     existingEnvs
   }
 
@@ -337,7 +337,7 @@ trait ElasticBeanstalkCommands {
             case None => None
           }
       }.toMap
-      s.log.info("eb-parent-environments: " + parentEnvs.toString)
+      s.log.debug("eb-parent-environments: " + parentEnvs.toString)
       parentEnvs
     }
   }
