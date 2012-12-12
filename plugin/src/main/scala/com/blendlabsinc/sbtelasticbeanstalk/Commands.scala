@@ -17,13 +17,14 @@ import scala.collection.JavaConverters._
 trait ElasticBeanstalkCommands {
   val waitTimeout = 1000 * 20 * 60 /* 20 minutes */
 
-  val ebDeployTask = (eb.ebSetUpEnvForAppVersion, eb.ebClient, eb.ebParentEnvironments, state, streams) map {
-    (setUpEnvs, ebClient, parentEnvs, state, s) => {
+  val ebDeployTask = (eb.ebSetUpEnvForAppVersion, eb.ebClient, eb.ebParentEnvironments, eb.ebNotify, state, streams) map {
+    (setUpEnvs, ebClient, parentEnvs, ebNotify, state, s) => {
       sleepForApproximately(15000)
       val setUpEnvsSeq = setUpEnvs.toSeq
       val deploys = setUpEnvsSeq.map { case (deployment, setUpEnv) =>
           Futures.future {
             waitAndSwap(deployment, setUpEnv, parentEnvs.get(deployment), ebClient, s)
+            ebNotify(deployment, setUpEnv, "full deployment")
           }
       }
 
@@ -127,8 +128,8 @@ trait ElasticBeanstalkCommands {
 
   // TODO: quick update only works for WARs with Tomcat
   val ebQuickUpdateTask = inputTask { (argTask: TaskKey[Seq[String]]) =>
-    (argTask, eb.ebDeployments, eb.ebParentEnvironments, eb.ebUploadSourceBundle, eb.ebClient, eb.ec2Client, eb.ebRegion, streams) map {
-      (args: Seq[String], deployments, parentEnvs, sourceBundle, ebClient, ec2Client, awsRegion, s) => {
+    (argTask, eb.ebDeployments, eb.ebParentEnvironments, eb.ebUploadSourceBundle, eb.ebClient, eb.ec2Client, eb.ebRegion, eb.ebNotify, streams) map {
+      (args: Seq[String], deployments, parentEnvs, sourceBundle, ebClient, ec2Client, awsRegion, ebNotify, s) => {
         val appFilter = if (args.length == 1) {
           s.log.info("Only quick-updating apps containing '" + args(0) + "'.")
           args(0)
@@ -171,6 +172,7 @@ trait ElasticBeanstalkCommands {
               ))
             }
             s.log.info(logPrefix + "Finished")
+            ebNotify(d, parentEnv, "quick update")
           }
         }
       }

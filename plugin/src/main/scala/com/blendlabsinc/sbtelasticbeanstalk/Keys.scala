@@ -60,6 +60,8 @@ object ElasticBeanstalkKeys {
   val ec2Client = TaskKey[AmazonEC2Client]("eb-ec2-client")
   val ebClient = TaskKey[AWSElasticBeanstalkClient]("eb-client")
 
+  val ebNotify = SettingKey[Function3[Deployment, EnvironmentDescription, String, Unit]]("eb-notify", "Notification function called after successful deployments and quick-updates")
+
   // Debug
   val ebRequireJava6 = SettingKey[Boolean]("eb-require-java6", "Require Java6 to deploy WAR (as of Dec 2012, Java7 is incompatible with EB)")
 }

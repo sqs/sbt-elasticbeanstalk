@@ -35,6 +35,7 @@ trait ElasticBeanstalkSettings {
     ec2Client <<= (ebRegion) map { (region) => AWS.ec2Client(region) },
     ebApiDescribeApplications <<= ebApiDescribeApplicationsTask,
     ebApiDescribeEnvironments <<= ebApiDescribeEnvironmentsTask,
+    ebNotify := { (deployment, env, msg) => },
     commands ++= Seq(ebApiRestartAppServer),
     ebRequireJava6 := true
   )
