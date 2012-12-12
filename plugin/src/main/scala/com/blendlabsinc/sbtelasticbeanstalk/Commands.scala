@@ -137,10 +137,9 @@ trait ElasticBeanstalkCommands {
               }
               execRemote(instanceAddress, List(
                 "curl -o /tmp/latest.war '" + warUrl + "'",
-                "sudo service tomcat7 stop",
                 "sudo rm -rf /usr/share/tomcat7/webapps/ROOT",
                 "sudo bash -c 'cd /usr/share/tomcat7/webapps && mkdir ROOT && cd ROOT && unzip /tmp/latest.war && chown -R tomcat:tomcat /usr/share/tomcat7/webapps'",
-                "sudo service tomcat7 start"
+                "sudo bash /opt/elasticbeanstalk/hooks/restartappserver/enact/01restart.sh"
               ))
             }
             s.log.info(logPrefix + "Finished")
