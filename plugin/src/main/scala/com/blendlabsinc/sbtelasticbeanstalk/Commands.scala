@@ -136,7 +136,7 @@ trait ElasticBeanstalkCommands {
         } else if (args.length > 1) {
           throw new Exception("eb-quick-update only accepts one space-delimited argument; provided " + args.length)
         } else ""
-        deployments.foreach { d =>
+        val ops = for (d <- deployments) yield Futures.future {
           if (!d.appName.contains(appFilter)) {
             s.log.warn("Quick update: skipping deployment for app '" + d.appName + "' because it does not match filter '" + appFilter + "'.")
           } else if (!parentEnvs.contains(d)) {
@@ -146,14 +146,14 @@ trait ElasticBeanstalkCommands {
             val logPrefix = "Quick update [" + d.appName + ":" + d.envBaseName + "]: "
 
             s.log.info(logPrefix + "Describing environment resources for environment '" + parentEnv.getEnvironmentName + "'.")
-            val instanceIds = ebClient.describeEnvironmentResources(
+            val instanceIds = throttled { ebClient.describeEnvironmentResources(
               new DescribeEnvironmentResourcesRequest().withEnvironmentName(parentEnv.getEnvironmentName)
-            ).getEnvironmentResources.getInstances.map(_.getId)
+            )}.getEnvironmentResources.getInstances.map(_.getId)
 
             s.log.info(logPrefix + "Looking up IP addresses for instances: " + instanceIds + ".")
-            val instanceAddresses = ec2Client.describeInstances(
+            val instanceAddresses = throttled { ec2Client.describeInstances(
               new ec2.DescribeInstancesRequest().withInstanceIds(instanceIds.toSet)
-            ).getReservations.flatMap(_.getInstances).map { i =>
+            )}.getReservations.flatMap(_.getInstances).map { i =>
               if (i.getPublicDnsName != null && i.getPublicDnsName != "") i.getPublicDnsName else i.getPrivateIpAddress
             }
 
@@ -175,6 +175,9 @@ trait ElasticBeanstalkCommands {
             ebNotify(d, parentEnv, "quick update")
           }
         }
+        val res = Futures.awaitAll(1000 * 60 * 5 /* 5 minutes */, ops.toSeq: _*)
+        val hasFailures = (res.count(!_.isDefined) > 0)
+        if (hasFailures) sys.error("Some eb-quick-update operations failed. See log messages for details.")
       }
     }
   }
