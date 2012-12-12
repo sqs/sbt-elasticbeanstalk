@@ -114,22 +114,23 @@ trait ElasticBeanstalkCommands {
             s.log.warn("Quick update: Can't update deployment " + d.toString + " because it has no running environment.")
           } else {
             val parentEnv = parentEnvs(d)
+            val logPrefix = "Quick update [" + d.appName + ":" + d.envBaseName + "]: "
 
-            s.log.info("Quick update: Describing environment resources for environment '" + parentEnv.getEnvironmentName + "'.")
+            s.log.info(logPrefix + "Describing environment resources for environment '" + parentEnv.getEnvironmentName + "'.")
             val instanceIds = ebClient.describeEnvironmentResources(
               new DescribeEnvironmentResourcesRequest().withEnvironmentName(parentEnv.getEnvironmentName)
             ).getEnvironmentResources.getInstances.map(_.getId)
 
-            s.log.info("Quick update: Looking up IP addresses for instances: " + instanceIds + ".")
+            s.log.info(logPrefix + "Looking up IP addresses for instances: " + instanceIds + ".")
             val instanceAddresses = ec2Client.describeInstances(
               new ec2.DescribeInstancesRequest().withInstanceIds(instanceIds.toSet)
             ).getReservations.flatMap(_.getInstances).map { i =>
               if (i.getPublicDnsName != null && i.getPublicDnsName != "") i.getPublicDnsName else i.getPrivateIpAddress
             }
 
-            s.log.info("Quick update: Found IP addresses " + instanceAddresses)
+            s.log.info(logPrefix + "Found IP addresses " + instanceAddresses)
             for (instanceAddress <- instanceAddresses) {
-              s.log.info("SSHing to " + instanceAddress + " to update " + d.envBaseName + "...")
+              s.log.info(logPrefix + "SSHing to " + instanceAddress + " to update " + d.envBaseName + "...")
               val warUrl = {
                 val s3Client = AWS.s3Client(awsRegion)
                 s3Client.generatePresignedUrl(sourceBundle.getS3Bucket, sourceBundle.getS3Key, new java.util.Date(System.currentTimeMillis + 1000*60*60*24)).toString
