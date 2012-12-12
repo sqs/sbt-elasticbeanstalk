@@ -9,7 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import java.io.File
 import sbt.Keys.{ state, streams }
 import sbt.Path._
-import sbt.{ IO, Project }
+import sbt.{ IO, Project, TaskKey, inputTask }
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
@@ -98,40 +98,50 @@ trait ElasticBeanstalkCommands {
   }
 
   // TODO: quick update only works for WARs with Tomcat
-  val ebQuickUpdateTask = (eb.ebDeployments, eb.ebParentEnvironments, eb.ebUploadSourceBundle, eb.ebClient, eb.ec2Client, eb.ebRegion, streams) map {
-    (deployments, parentEnvs, sourceBundle, ebClient, ec2Client, awsRegion, s) => {
-      deployments.foreach { d =>
-        if (!parentEnvs.contains(d)) {
-          s.log.warn("Quick update: Can't update deployment " + d.toString + " because it has no running environment.")
-        } else {
-          val parentEnv = parentEnvs(d)
+  val ebQuickUpdateTask = inputTask { (argTask: TaskKey[Seq[String]]) =>
+    (argTask, eb.ebDeployments, eb.ebParentEnvironments, eb.ebUploadSourceBundle, eb.ebClient, eb.ec2Client, eb.ebRegion, streams) map {
+      (args: Seq[String], deployments, parentEnvs, sourceBundle, ebClient, ec2Client, awsRegion, s) => {
+        val appFilter = if (args.length == 1) {
+          s.log.info("Only quick-updating apps containing '" + args(0) + "'.")
+          args(0)
+        } else if (args.length > 1) {
+          throw new Exception("eb-quick-update only accepts one space-delimited argument; provided " + args.length)
+        } else ""
+        deployments.foreach { d =>
+          if (!d.appName.contains(appFilter)) {
+            s.log.warn("Quick update: skipping deployment for app '" + d.appName + "' because it does not match filter '" + appFilter + "'.")
+          } else if (!parentEnvs.contains(d)) {
+            s.log.warn("Quick update: Can't update deployment " + d.toString + " because it has no running environment.")
+          } else {
+            val parentEnv = parentEnvs(d)
 
-          s.log.info("Quick update: Describing environment resources for environment '" + parentEnv.getEnvironmentName + "'.")
-          val instanceIds = ebClient.describeEnvironmentResources(
-            new DescribeEnvironmentResourcesRequest().withEnvironmentName(parentEnv.getEnvironmentName)
-          ).getEnvironmentResources.getInstances.map(_.getId)
+            s.log.info("Quick update: Describing environment resources for environment '" + parentEnv.getEnvironmentName + "'.")
+            val instanceIds = ebClient.describeEnvironmentResources(
+              new DescribeEnvironmentResourcesRequest().withEnvironmentName(parentEnv.getEnvironmentName)
+            ).getEnvironmentResources.getInstances.map(_.getId)
 
-          s.log.info("Quick update: Looking up IP addresses for instances: " + instanceIds + ".")
-          val instanceAddresses = ec2Client.describeInstances(
-            new ec2.DescribeInstancesRequest().withInstanceIds(instanceIds.toSet)
-          ).getReservations.flatMap(_.getInstances).map { i =>
-            if (i.getPublicDnsName != null && i.getPublicDnsName != "") i.getPublicDnsName else i.getPrivateIpAddress
-          }
-
-          s.log.info("Quick update: Found IP addresses " + instanceAddresses)
-          for (instanceAddress <- instanceAddresses) {
-            s.log.info("SSHing to " + instanceAddress + " to update " + d.envBaseName + "...")
-            val warUrl = {
-              val s3Client = AWS.s3Client(awsRegion)
-              s3Client.generatePresignedUrl(sourceBundle.getS3Bucket, sourceBundle.getS3Key, new java.util.Date(System.currentTimeMillis + 1000*60*60*24)).toString
+            s.log.info("Quick update: Looking up IP addresses for instances: " + instanceIds + ".")
+            val instanceAddresses = ec2Client.describeInstances(
+              new ec2.DescribeInstancesRequest().withInstanceIds(instanceIds.toSet)
+            ).getReservations.flatMap(_.getInstances).map { i =>
+              if (i.getPublicDnsName != null && i.getPublicDnsName != "") i.getPublicDnsName else i.getPrivateIpAddress
             }
-            execRemote(instanceAddress, List(
-              "curl -o /tmp/latest.war '" + warUrl + "'",
-              "sudo service tomcat7 stop",
-              "sudo rm -rf /usr/share/tomcat7/webapps/ROOT",
-              "sudo bash -c 'cd /usr/share/tomcat7/webapps && mkdir ROOT && cd ROOT && unzip /tmp/latest.war && chown -R tomcat:tomcat /usr/share/tomcat7/webapps'",
-              "sudo service tomcat7 start"
-            ))
+
+            s.log.info("Quick update: Found IP addresses " + instanceAddresses)
+            for (instanceAddress <- instanceAddresses) {
+              s.log.info("SSHing to " + instanceAddress + " to update " + d.envBaseName + "...")
+              val warUrl = {
+                val s3Client = AWS.s3Client(awsRegion)
+                s3Client.generatePresignedUrl(sourceBundle.getS3Bucket, sourceBundle.getS3Key, new java.util.Date(System.currentTimeMillis + 1000*60*60*24)).toString
+              }
+              execRemote(instanceAddress, List(
+                "curl -o /tmp/latest.war '" + warUrl + "'",
+                "sudo service tomcat7 stop",
+                "sudo rm -rf /usr/share/tomcat7/webapps/ROOT",
+                "sudo bash -c 'cd /usr/share/tomcat7/webapps && mkdir ROOT && cd ROOT && unzip /tmp/latest.war && chown -R tomcat:tomcat /usr/share/tomcat7/webapps'",
+                "sudo service tomcat7 start"
+              ))
+            }
           }
         }
       }

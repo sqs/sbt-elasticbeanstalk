@@ -4,7 +4,7 @@ import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
 import com.amazonaws.services.elasticbeanstalk.model._
 import java.io.File
-import sbt.{ SettingKey, TaskKey }
+import sbt.{ InputKey, SettingKey, TaskKey }
 
 case class Deployment(
   appName: String,
@@ -33,7 +33,7 @@ object ElasticBeanstalkKeys {
   val ebRegion = SettingKey[String]("ebRegion", "Elastic Beanstalk region (e.g., us-west-1)")
 
   val ebDeploy = TaskKey[Unit]("eb-deploy", "Deploy the application WAR to Elastic Beanstalk")
-  val ebQuickUpdate = TaskKey[Unit]("eb-quick-update", "Update the application WAR in-place on a running server.")
+  val ebQuickUpdate = InputKey[Unit]("eb-quick-update", "Update the application WAR in-place on a running server.")
   val ebWait = TaskKey[Unit]("eb-wait", "Wait for all project environments to be Ready and Green")
 
   val ebSetUpEnvForAppVersion = TaskKey[Map[Deployment,EnvironmentDescription]]("eb-setup-env-for-app-version", "Sets up a new environment for the WAR file.")
