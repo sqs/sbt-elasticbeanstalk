@@ -24,7 +24,7 @@ trait ElasticBeanstalkCommands {
       val deploys = setUpEnvsSeq.map { case (deployment, setUpEnv) =>
           Futures.future {
             waitAndSwap(deployment, setUpEnv, parentEnvs.get(deployment), ebClient, s)
-            ebNotify(deployment, setUpEnv, "full deployment")
+            ebNotify(deployment, setUpEnv, "full")
           }
       }
 
@@ -172,7 +172,7 @@ trait ElasticBeanstalkCommands {
               ))
             }
             s.log.info(logPrefix + "Finished")
-            ebNotify(d, parentEnv, "quick update")
+            ebNotify(d, parentEnv, "quick")
           }
         }
         val res = Futures.awaitAll(1000 * 60 * 5 /* 5 minutes */, ops.toSeq: _*)
