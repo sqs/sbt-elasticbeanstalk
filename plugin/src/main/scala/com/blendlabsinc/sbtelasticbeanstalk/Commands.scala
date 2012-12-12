@@ -10,40 +10,68 @@ import java.io.File
 import sbt.Keys.{ state, streams }
 import sbt.Path._
 import sbt.{ IO, Project, TaskKey, inputTask }
+import scala.actors.Futures
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 
 trait ElasticBeanstalkCommands {
+  val waitTimeout = 1000 * 20 * 60 /* 20 minutes */
+
   val ebDeployTask = (eb.ebSetUpEnvForAppVersion, eb.ebClient, eb.ebParentEnvironments, state, streams) map {
     (setUpEnvs, ebClient, parentEnvs, state, s) => {
       sleepForApproximately(15000)
-      waitForEnvironments(setUpEnvs, ebClient, s)
-      setUpEnvs.map { case (deployment, setUpEnv) =>
-          // Swap and terminate the parent environment if it exists.
-          parentEnvs.get(deployment).map { parentEnv =>
-            s.log.info("Swapping environment CNAMEs for app " + deployment.appName + ", " +
-              "with source " + parentEnv.getEnvironmentName + " and destination " +
-              setUpEnv.getEnvironmentName + ".")
-            ebClient.swapEnvironmentCNAMEs(
-              new SwapEnvironmentCNAMEsRequest()
-                .withSourceEnvironmentName(parentEnv.getEnvironmentName)
-                .withDestinationEnvironmentName(setUpEnv.getEnvironmentName)
-            )
-            s.log.info("Swap complete.")
-            s.log.info("Waiting for DNS TTL (60 seconds) plus 10 seconds until old environment '" + parentEnv.getEnvironmentName + "' is terminated...")
-            sleepForApproximately(70 * 1000)
-            s.log.info("Terminating environment '" + parentEnv.getEnvironmentName + "'.")
-            ebClient.terminateEnvironment(
-              new TerminateEnvironmentRequest()
-                .withEnvironmentName(parentEnv.getEnvironmentName)
-                .withTerminateResources(true)
-            )
-            s.log.info("Old environment terminated.")
+      val setUpEnvsSeq = setUpEnvs.toSeq
+      val deploys = setUpEnvsSeq.map { case (deployment, setUpEnv) =>
+          Futures.future {
+            waitAndSwap(deployment, setUpEnv, parentEnvs.get(deployment), ebClient, s)
           }
       }
-      s.log.info("Deployment complete.")
-      ()
+
+      val results = Futures.awaitAll(waitTimeout, deploys: _*)
+      s.log.info("=============================================")
+      s.log.info("Deployment results")
+      s.log.info("=============================================")
+      results.zipWithIndex.foreach { case (result, i) =>
+          val (deployment, setUpEnv) = setUpEnvsSeq(i)
+          val logFn = if (result.isDefined) (s.log.info (_: String)) else (s.log.error (_: String))
+          logFn(
+            "% 2d. " + deployment.appName + ":" + setUpEnv.getEnvironmentName + " " +
+              (if (result.isDefined) "deployed successfully" else "failed to deploy")
+          )
+      }
+
+      val hasFailures = (results.count(!_.isDefined) > 0)
+      if (hasFailures) sys.error("Some deployments failed. See log messages for more details.")
     }
+  }
+
+  def waitAndSwap(deployment: Deployment, setUpEnv: EnvironmentDescription, parentEnv: Option[EnvironmentDescription], ebClient: AWSElasticBeanstalkClient, s: sbt.std.TaskStreams[_]) {
+    waitForEnvironment(deployment, setUpEnv, ebClient, s)
+
+    val logPrefix = deployment.appName + ":" + deployment.envBaseName + ": "
+
+    // Swap and terminate the parent environment if it exists.
+    parentEnv.map { parentEnv =>
+      s.log.info(logPrefix + "Swapping environment CNAMEs for app " + deployment.appName + ", " +
+        "with source " + parentEnv.getEnvironmentName + " and destination " +
+        setUpEnv.getEnvironmentName + ".")
+      ebClient.swapEnvironmentCNAMEs(
+        new SwapEnvironmentCNAMEsRequest()
+          .withSourceEnvironmentName(parentEnv.getEnvironmentName)
+          .withDestinationEnvironmentName(setUpEnv.getEnvironmentName)
+      )
+      s.log.info(logPrefix + "Swap complete.")
+      s.log.info(logPrefix + "Waiting for DNS TTL (60 seconds) plus 10 seconds until old environment '" + parentEnv.getEnvironmentName + "' is terminated...")
+      sleepForApproximately(70 * 1000)
+      s.log.info(logPrefix + "Terminating environment '" + parentEnv.getEnvironmentName + "'.")
+      ebClient.terminateEnvironment(
+        new TerminateEnvironmentRequest()
+          .withEnvironmentName(parentEnv.getEnvironmentName)
+          .withTerminateResources(true)
+      )
+      s.log.info(logPrefix + "Old environment terminated.")
+    }
+    s.log.info(logPrefix + "Deployment complete.")
   }
 
   val ebSetUpEnvForAppVersionTask = (eb.ebDeployments, eb.ebUploadSourceBundle, eb.ebTargetEnvironments, eb.ebClient, streams) map {
@@ -276,63 +304,65 @@ trait ElasticBeanstalkCommands {
   }
 
   val ebWaitForEnvironmentsTask = (eb.ebTargetEnvironments, eb.ebClient, streams) map { (targetEnvs, ebClient, s) =>
-    waitForEnvironments(targetEnvs, ebClient, s)
+    val waits = for ((deployment, targetEnv) <- targetEnvs) yield Futures.future {
+      waitForEnvironment(deployment, targetEnv, ebClient, s)
+    }
+    Futures.awaitAll(waitTimeout, waits.toSeq: _*)
+    ()
   }
 
-  def waitForEnvironments(envs: Map[Deployment,EnvironmentDescription], ebClient: AWSElasticBeanstalkClient, s: sbt.std.TaskStreams[_]) = {
-    envs.foreach { case (deployment, targetEnv) =>
-      val startTime = System.currentTimeMillis
-      var logged = false
-      var done = false
-      while (!done) {
-        val elapsedSec = (System.currentTimeMillis - startTime)/1000
-        sleepForApproximately(5000)
-        val envDesc = throttled { ebClient.describeEnvironments(
-          new DescribeEnvironmentsRequest()
-            .withApplicationName(deployment.appName)
-            .withEnvironmentNames(List(targetEnv.getEnvironmentName))
-        )}.getEnvironments.headOption
-        envDesc match {
-          case Some(envDesc) => {
-            if (EnvironmentStatus.valueOf(envDesc.getStatus) == EnvironmentStatus.Terminated) {
-              throw new Exception(
-                "App '" + deployment.appName + "' env '" + targetEnv.getEnvironmentName + "' " +
+  def waitForEnvironment(deployment: Deployment, env: EnvironmentDescription, ebClient: AWSElasticBeanstalkClient, s: sbt.std.TaskStreams[_]) = {
+    val startTime = System.currentTimeMillis
+    var logged = false
+    var done = false
+    while (!done) {
+      val elapsedSec = (System.currentTimeMillis - startTime)/1000
+      sleepForApproximately(5000)
+      val envDesc = throttled { ebClient.describeEnvironments(
+        new DescribeEnvironmentsRequest()
+          .withApplicationName(deployment.appName)
+          .withEnvironmentNames(List(env.getEnvironmentName))
+      )}.getEnvironments.headOption
+      envDesc match {
+        case Some(envDesc) => {
+          if (EnvironmentStatus.valueOf(envDesc.getStatus) == EnvironmentStatus.Terminated) {
+            throw new Exception(
+              "App '" + deployment.appName + "' env '" + env.getEnvironmentName + "' " +
                 "has Terminated status."
-              )
+            )
+          } else {
+            done = (EnvironmentStatus.valueOf(envDesc.getStatus) == EnvironmentStatus.Ready &&
+              EnvironmentHealth.valueOf(envDesc.getHealth) == EnvironmentHealth.Green)
+            if (done) {
+              if (logged) println("\n")
             } else {
-              done = (EnvironmentStatus.valueOf(envDesc.getStatus) == EnvironmentStatus.Ready &&
-                EnvironmentHealth.valueOf(envDesc.getHealth) == EnvironmentHealth.Green)
-              if (done) {
-                if (logged) println("\n")
-              } else {
-                if (!logged) {
-                  s.log.info("Waiting for  app '" + deployment.appName + "' " +
-                    "environment '" + targetEnv.getEnvironmentName + "' to become Ready and Green...")
-                  logged = true
-                }
-                print("\rApp: " + envDesc.getApplicationName + "   " +
-                  "Env: " + targetEnv.getEnvironmentName + "   " +
-                  "Status: " + envDesc.getStatus + "   " +
-                  "Health: " + envDesc.getHealth + "   " +
-                  "(" + elapsedSec + "s)")
-                sleepForApproximately(15000)
+              if (!logged) {
+                s.log.info("Waiting for  app '" + deployment.appName + "' " +
+                  "environment '" + env.getEnvironmentName + "' to become Ready and Green...")
+                logged = true
               }
+              print("\rApp: " + envDesc.getApplicationName + "   " +
+                "Env: " + env.getEnvironmentName + "   " +
+                "Status: " + envDesc.getStatus + "   " +
+                "Health: " + envDesc.getHealth + "   " +
+                "(" + elapsedSec + "s)")
+              sleepForApproximately(15000)
             }
           }
-          case None => {
-            s.log.warn("Environment " + deployment.appName + "/" + targetEnv.getEnvironmentName + " " +
-                       "not found. Trying again after a delay...")
-            sleepForApproximately(15000)
-          }
         }
-        if (elapsedSec > (20*60)) { // 20 minutes
-          throw new Exception("Waited 20 minutes for " +
-                              deployment.appName + "/" + targetEnv.getEnvironmentName +
-                              ", still not Ready & Green. Failing.")
+        case None => {
+          s.log.warn("Environment " + deployment.appName + "/" + env.getEnvironmentName + " " +
+            "not found. Trying again after a delay...")
+          sleepForApproximately(15000)
         }
       }
+      if (elapsedSec > (20*60)) { // 20 minutes
+        throw new Exception("Waited 20 minutes for " +
+          deployment.appName + "/" + env.getEnvironmentName +
+          ", still not Ready & Green. Failing.")
+      }
     }
-    s.log.info("All environments are Ready and Green: " + envs.keys.toString + ".")
+    s.log.info("Environment is Ready and Green: " + deployment.appName + ":" + env.getEnvironmentName + ".")
   }
 
   val ebParentEnvironmentsTask = (eb.ebExistingEnvironments, eb.ebClient, streams) map {
