@@ -312,6 +312,22 @@ trait ElasticBeanstalkCommands {
   }
 
   def waitForEnvironment(deployment: Deployment, env: EnvironmentDescription, ebClient: AWSElasticBeanstalkClient, s: sbt.std.TaskStreams[_]) = {
+    def checkEnvironmentEventsForErrors() {
+      val events = ebClient.describeEvents(
+        new DescribeEventsRequest()
+          .withEnvironmentName(env.getEnvironmentName)
+          .withSeverity(EventSeverity.ERROR.toString)
+          .withMaxRecords(10)
+      ).getEvents
+      if (!events.isEmpty) {
+        s.log.error("App '" + deployment.appName + "' env '" + env.getEnvironmentName + "' has error events:")
+        for (event <- events) {
+          s.log.error(event.getApplicationName + ":" + event.getEnvironmentName + ": " + event.getEventDate.toString + " " + event.getSeverity + " " + event.getMessage)
+        }
+        sys.error("App '" + deployment.appName + "' env '" + env.getEnvironmentName + "' has error events. See log messages for more details.")
+      }
+    }
+
     val startTime = System.currentTimeMillis
     var logged = false
     var done = false
@@ -336,6 +352,7 @@ trait ElasticBeanstalkCommands {
             if (done) {
               if (logged) println("\n")
             } else {
+              checkEnvironmentEventsForErrors()
               if (!logged) {
                 s.log.info("Waiting for  app '" + deployment.appName + "' " +
                   "environment '" + env.getEnvironmentName + "' to become Ready and Green...")
