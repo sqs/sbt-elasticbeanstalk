@@ -143,6 +143,7 @@ trait ElasticBeanstalkCommands {
                 "sudo service tomcat7 start"
               ))
             }
+            s.log.info(logPrefix + "Finished")
           }
         }
       }
