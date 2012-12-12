@@ -294,22 +294,29 @@ trait ElasticBeanstalkCommands {
         )}.getEnvironments.headOption
         envDesc match {
           case Some(envDesc) => {
-            done = (EnvironmentStatus.valueOf(envDesc.getStatus) == EnvironmentStatus.Ready &&
-                    EnvironmentHealth.valueOf(envDesc.getHealth) == EnvironmentHealth.Green)
-            if (done) {
-              if (logged) println("\n")
+            if (EnvironmentStatus.valueOf(envDesc.getStatus) == EnvironmentStatus.Terminated) {
+              throw new Exception(
+                "App '" + deployment.appName + "' env '" + targetEnv.getEnvironmentName + "' " +
+                "has Terminated status."
+              )
             } else {
-              if (!logged) {
-                s.log.info("Waiting for  app '" + deployment.appName + "' " +
-                           "environment '" + targetEnv.getEnvironmentName + "' to become Ready and Green...")
-                logged = true
+              done = (EnvironmentStatus.valueOf(envDesc.getStatus) == EnvironmentStatus.Ready &&
+                EnvironmentHealth.valueOf(envDesc.getHealth) == EnvironmentHealth.Green)
+              if (done) {
+                if (logged) println("\n")
+              } else {
+                if (!logged) {
+                  s.log.info("Waiting for  app '" + deployment.appName + "' " +
+                    "environment '" + targetEnv.getEnvironmentName + "' to become Ready and Green...")
+                  logged = true
+                }
+                print("\rApp: " + envDesc.getApplicationName + "   " +
+                  "Env: " + targetEnv.getEnvironmentName + "   " +
+                  "Status: " + envDesc.getStatus + "   " +
+                  "Health: " + envDesc.getHealth + "   " +
+                  "(" + elapsedSec + "s)")
+                sleepForApproximately(15000)
               }
-              print("\rApp: " + envDesc.getApplicationName + "   " +
-                    "Env: " + targetEnv.getEnvironmentName + "   " +
-                    "Status: " + envDesc.getStatus + "   " +
-                    "Health: " + envDesc.getHealth + "   " +
-                    "(" + elapsedSec + "s)")
-              sleepForApproximately(15000)
             }
           }
           case None => {
