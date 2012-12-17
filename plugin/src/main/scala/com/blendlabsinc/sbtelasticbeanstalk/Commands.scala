@@ -434,7 +434,11 @@ trait ElasticBeanstalkCommands {
         import sbt.IO
         s.log.info("Zipping up directory '" + dir.getAbsolutePath + "'.")
         val tmpZipFile = new File(IO.createTemporaryDirectory, dir.getName + ".zip")
-        IO.zip(IO.listFiles(dir).map { f => (f, IO.relativize(dir, f).get) }, tmpZipFile)
+        def listFilesRecursive(dir: File): List[File] =
+          List(dir) ++ (if (dir.isFile) Nil else IO.listFiles(dir).flatMap(listFilesRecursive))
+        val files = listFilesRecursive(dir).map { f => (f, IO.relativize(dir, f).getOrElse("TODO")) }
+        s.log.info("Adding files to zip: \n - " + files.mkString("\n - "))
+        IO.zip(files, tmpZipFile)
         s.log.info("Finished zipping up directory '" + dir.getAbsolutePath + "' to '" + tmpZipFile.getAbsolutePath + " (" + (tmpZipFile.length/1024) + " kb compressed).")
         tmpZipFile
       }
