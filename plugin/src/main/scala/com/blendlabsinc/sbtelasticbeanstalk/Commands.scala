@@ -107,7 +107,7 @@ trait ElasticBeanstalkCommands {
               "  Environment vars: " + deployment.environmentVariables.toString
           )
 
-          val res = ebClient.createEnvironment(
+          val res = throttled { ebClient.createEnvironment(
             new CreateEnvironmentRequest()
               .withApplicationName(targetEnv.getApplicationName)
               .withEnvironmentName(targetEnv.getEnvironmentName)
@@ -115,7 +115,7 @@ trait ElasticBeanstalkCommands {
               .withCNAMEPrefix(targetEnv.getCNAME)
               .withTemplateName(deployment.templateName)
               .withOptionSettings(envVarSettings)
-          )
+          )}
           s.log.info("Elastic Beanstalk app version update complete. The new version will not be available " +
             "until the new environment is ready. When the new environment is ready, its " +
             "CNAME will be swapped with the current environment's CNAME, resulting in no downtime.\n" +
