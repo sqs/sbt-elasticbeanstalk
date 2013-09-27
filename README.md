@@ -1,6 +1,8 @@
 sbt-elasticbeanstalk
 ====================
 
+[![Views in the last 24 hours](https://sourcegraph.com/api/repos/github.com/sqs/sbt-elasticbeanstalk/counters/views-24h.png)](https://sourcegraph.com/github.com/sqs/sbt-elasticbeanstalk)
+
 This sbt plugin integrates with [play2-war-plugin][play2war] to let you easily deploy Play2 WAR apps to [Amazon Elastic Beanstalk][awseb].
 
 Once configured, running `sbt eb-deploy` uploads your application's WAR file to S3 and deploys it to your Elastic Beanstalk environment.
