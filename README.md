@@ -3,14 +3,14 @@ sbt-elasticbeanstalk
 
 [![Views in the last 24 hours](https://sourcegraph.com/api/repos/github.com/sqs/sbt-elasticbeanstalk/counters/views-24h.png)](https://sourcegraph.com/github.com/sqs/sbt-elasticbeanstalk)
 
-This sbt plugin integrates with [play2-war-plugin][play2war] to let you easily deploy Play2 WAR apps to [Amazon Elastic Beanstalk][awseb].
+This sbt plugin allows easy deployment of web archive (.war) application files  to [Amazon Elastic Beanstalk][awseb].
 
 Once configured, running `sbt eb-deploy` uploads your application's WAR file to S3 and deploys it to your Elastic Beanstalk environment.
 
 A sample using Play 2.1-RC1 is included.
 
 
-Configuration
+Configuration for Play
 -------------
 
 In `project/plugins.sbt`, add:
@@ -67,12 +67,60 @@ secretKey = <your AWS secret key>
 ```
 
 
+Configuration for non-Play
+-------------
+
+In `project/plugins.sbt`, add:
+
+```scala
+resolvers += "Play2war plugins release" at "http://repository-play-war.forge.cloudbees.com/release/"
+
+addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk-plugin" % "0.0.6-SNAPSHOT")
+```
+
+In `build.sbt`, add the following at the top of the file:
+
+```scala
+import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalk, Deployment }
+import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
+```
+
+Add the following settings to your project:
+
+```scala
+seq(ElasticBeanstalk.elasticBeanstalkSettings: _*)
+
+ebAppBundle <<= Keys.`package` in Compile
+
+ebS3BucketName := "some-bucket-name"
+
+ebDeployments := Seq(
+  Deployment(
+    appName = "some-app-name",
+    envBaseName = "some-environment-name",
+    templateName = "my-template",
+    cname = "my-cname",
+    environmentVariables = Map("MyFavoriteColor" -> "blue")
+  )
+)
+
+ebRegion := "us-west-1"
+
+You must create the S3 bucket and Elastic Beanstalk app and environment specified in this file. You can specify your preferred AWS region.  Note that this assumes the web application plugin you are utilizing produces a war file with the compile:package key.  This is the case for Lift, for instance.  
+
+Create a file in `$HOME/.aws-credentials` with your AWS credentials in the following format:
+
+```
+accessKey = <your AWS access key>
+secretKey = <your AWS secret key>
+```
+
 Usage
 -----
 
 Once you've configured sbt-elasticbeanstalk as described above, run the sbt `eb-deploy` task. This will:
 
-1. Create a WAR file for your application (using [play2-war-plugin][play2war]);
+1. Create a WAR file for your application;
 2. Upload the WAR to S3 in the bucket you specified; and
 3. Update your Elastic Beanstalk environment to use the new WAR.
 
@@ -100,6 +148,7 @@ Features
 Changelog
 ---------
 
+* 0.0.7: Windows support. Decoupled from Play to support Lift, etc.
 * 0.0.6: Better, template-aware `eb-config-push` and `eb-config-pull`; added `eb-quick-update`
 * 0.0.5: Add configuration pushing `eb-config-push` and validation `eb-local-config-validate`.
 * 0.0.4: Add configuration pulling `eb-config-pull`; add `eb-wait` to wait until deployed; add `eb-api-describe-applications`, `eb-api-describe-environments`, and `eb-api-restart-app-server` tasks.
