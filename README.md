@@ -105,6 +105,7 @@ ebDeployments := Seq(
 )
 
 ebRegion := "us-west-1"
+```
 
 You must create the S3 bucket and Elastic Beanstalk app and environment specified in this file. You can specify your preferred AWS region.  Note that this assumes the web application plugin you are utilizing produces a war file with the compile:package key.  This is the case for Lift, for instance.  
 
