@@ -14,7 +14,7 @@ trait ElasticBeanstalkSettings {
       val maxLen = 23
       val uniq = sessionId
       if (name.length > (23 - 7)) throw new Exception("environment name too long: " + name)
-      name + "-" + System.getenv("USER").take(3) + uniq.take(3)
+      name + "-" + System.getProperty("user.name").take(3) + uniq.take(3)
     },
     ebDeploy <<= ebDeployTask,
     ebQuickUpdate <<= ebQuickUpdateTask,
