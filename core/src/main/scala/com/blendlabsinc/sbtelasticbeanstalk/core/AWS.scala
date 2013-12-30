@@ -5,10 +5,13 @@ import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
 import com.amazonaws.services.s3.AmazonS3Client
 import java.io.File
+import scala.sys.SystemProperties
 
 object AWS {
+  lazy val props = new SystemProperties()
+  
   lazy val awsCredentials = {
-    val file = new File(new File(System.getenv("HOME")), ".aws-credentials")
+    val file = new File(new File(props("user.home")), ".aws-credentials")
     if (!file.exists) {
       throw new Exception("AWS credentials file not found at " + file.getAbsolutePath + "\n\n" +
                           "Create a file at that path with the following contents:\n\n" +
@@ -17,7 +20,7 @@ object AWS {
     }
     new PropertiesCredentials(file)
   }
-
+  
   def ec2Client(region: String): AmazonEC2Client = {
     val c = new AmazonEC2Client(awsCredentials)
     c.setEndpoint("https://ec2." + region + ".amazonaws.com")
