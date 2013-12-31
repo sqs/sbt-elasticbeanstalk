@@ -85,7 +85,7 @@ trait ElasticBeanstalkCommands {
             .withApplicationName(appName)
             .withVersionLabel(versionLabel)
             .withSourceBundle(sourceBundle)
-            .withDescription("Deployed by " + System.getenv("USER"))
+            .withDescription("Deployed by " + System.getProperty("user.name"))
         ).getApplicationVersion
       }.toMap
 

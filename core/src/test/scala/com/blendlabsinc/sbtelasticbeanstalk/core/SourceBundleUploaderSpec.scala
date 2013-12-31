@@ -9,6 +9,6 @@ class SourceBundleUploaderSpec extends FunSpec with ShouldMatchers {
     val s3Location = u.upload()
     s3Location.getS3Bucket should equal (TestCommon.s3BucketName)
     s3Location.getS3Key should include (TestCommon.warName)
-    s3Location.getS3Key should include (System.getenv("USER"))
+    s3Location.getS3Key should include (System.getProperty("user.name"))
   }
 }
