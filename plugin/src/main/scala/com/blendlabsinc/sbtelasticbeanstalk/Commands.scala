@@ -7,7 +7,7 @@ import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
 import com.blendlabsinc.sbtelasticbeanstalk.core.{ AWS, SourceBundleUploader }
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.io.File
-import sbt.Keys.{ state, streams }
+import sbt.Keys.{ state, streams, version }
 import sbt.Path._
 import sbt.{ IO, Project, TaskKey, inputTask }
 import scala.actors.Futures
@@ -43,6 +43,53 @@ trait ElasticBeanstalkCommands {
 
       val hasFailures = (results.count(!_.isDefined) > 0)
       if (hasFailures) sys.error("Some deployments failed. See log messages for more details.")
+    }
+  }
+
+  val ebCreateVersionTask = (eb.ebClient, eb.ebDeployments, eb.ebUploadSourceBundle, eb.ebTargetEnvironments, version, streams) map {
+    (ebClient, ebDeployments, ebSourceBundle, targetEnvs, version, s) => {
+      ebDeployments foreach { d => s.log.info("Updating deployment "+d+" to version "+version) }
+      val versionLabel = ebSourceBundle.getS3Key
+      val appVersions = targetEnvs.keys.map(_.appName).toSet.map { (appName: String) =>
+        appName ->
+          ebClient.createApplicationVersion(
+            new CreateApplicationVersionRequest()
+              .withApplicationName(appName)
+              .withVersionLabel(versionLabel)
+              .withSourceBundle(ebSourceBundle)
+              .withDescription("Deployed by " + System.getProperty("user.name"))
+          ).getApplicationVersion
+      }.toMap
+
+      targetEnvs.map { case (deployment, targetEnv) =>
+        val appVersion = appVersions(deployment.appName)
+
+//        val envVarSettings = deployment.environmentVariables.map { case (k, v) =>
+//          new ConfigurationOptionSetting("aws:elasticbeanstalk:application:environment", k, v)
+//        }
+        s.log.debug("Updating environment "+targetEnv.getEnvironmentName)
+        val res = throttled { ebClient.updateEnvironment(
+          new UpdateEnvironmentRequest()
+            .withEnvironmentName(targetEnv.getEnvironmentName)
+            .withVersionLabel(appVersion.getVersionLabel)
+
+//          new CreateEnvironmentRequest()
+//            .withApplicationName(targetEnv.getApplicationName)
+//            .withEnvironmentName(targetEnv.getEnvironmentName)
+//            .withVersionLabel(appVersion.getVersionLabel)
+//            .withCNAMEPrefix(targetEnv.getCNAME)
+//            .withTemplateName(deployment.templateName)
+//            .withOptionSettings(envVarSettings)
+        )}
+
+        // TODO: Update
+        s.log.info("Elastic Beanstalk app version update complete. The new version will not be available " +
+          "until the new environment is ready. When the new environment is ready, its " +
+          "CNAME will be swapped with the current environment's CNAME, resulting in no downtime.\n" +
+          "URL: http://" + res.getCNAME() + "\n" +
+          "Status: " + res.getHealth())
+        deployment -> (new EnvironmentDescription().withEnvironmentName(res.getEnvironmentName).withCNAME(res.getCNAME))
+      }.toMap
     }
   }
 

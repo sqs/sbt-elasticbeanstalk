@@ -17,6 +17,7 @@ trait ElasticBeanstalkSettings {
       name + "-" + System.getProperty("user.name").take(3) + uniq.take(3)
     },
     ebDeploy <<= ebDeployTask,
+    ebCreateVersion <<= ebCreateVersionTask,
     ebQuickUpdate <<= ebQuickUpdateTask,
     ebSetUpEnvForAppVersion <<= ebSetUpEnvForAppVersionTask,
     ebWait <<= ebWaitForEnvironmentsTask,

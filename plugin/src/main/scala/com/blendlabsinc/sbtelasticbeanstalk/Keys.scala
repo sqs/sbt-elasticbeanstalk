@@ -34,6 +34,7 @@ object ElasticBeanstalkKeys {
 
   val ebDeploy = TaskKey[Unit]("eb-deploy", "Deploy the application WAR to Elastic Beanstalk")
   val ebQuickUpdate = InputKey[Unit]("eb-quick-update", "Update the application WAR in-place on a running server.")
+  val ebCreateVersion = TaskKey[Map[Deployment,EnvironmentDescription]]("eb-create-version", "Creates a new application version in the configured environment.")
   val ebWait = TaskKey[Unit]("eb-wait", "Wait for all project environments to be Ready and Green")
 
   val ebSetUpEnvForAppVersion = TaskKey[Map[Deployment,EnvironmentDescription]]("eb-setup-env-for-app-version", "Sets up a new environment for the WAR file.")
