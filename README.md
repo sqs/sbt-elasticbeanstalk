@@ -41,6 +41,7 @@ Add the following settings to your project:
 val main = play.Project(appName, appVersion, appDependencies).settings(
   resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns),
   Play2WarKeys.servletVersion := "3.0",
+  ebAppBundle <<= Play2WarKeys.war,
   ebS3BucketName := "some-bucket-name",
   ebDeployments := Seq(
     Deployment(
