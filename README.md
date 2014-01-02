@@ -149,7 +149,7 @@ Features
 Changelog
 ---------
 
-* 0.0.7: Windows support. Decoupled from Play to support Lift, etc.
+* 0.0.7: Windows support. Decoupled from Play to support Lift, etc. Added `eb-update-version`. Reads System properties when `~/.aws-credentials` cannot be found.
 * 0.0.6: Better, template-aware `eb-config-push` and `eb-config-pull`; added `eb-quick-update`
 * 0.0.5: Add configuration pushing `eb-config-push` and validation `eb-local-config-validate`.
 * 0.0.4: Add configuration pulling `eb-config-pull`; add `eb-wait` to wait until deployed; add `eb-api-describe-applications`, `eb-api-describe-environments`, and `eb-api-restart-app-server` tasks.
