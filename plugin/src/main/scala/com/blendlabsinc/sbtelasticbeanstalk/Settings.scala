@@ -18,6 +18,7 @@ trait ElasticBeanstalkSettings {
     },
     ebDeploy <<= ebDeployTask,
     ebCreateVersion <<= ebCreateVersionTask,
+    ebUpdateVersion <<= ebUpdateVersionTask,
     ebQuickUpdate <<= ebQuickUpdateTask,
     ebSetUpEnvForAppVersion <<= ebSetUpEnvForAppVersionTask,
     ebWait <<= ebWaitForEnvironmentsTask,

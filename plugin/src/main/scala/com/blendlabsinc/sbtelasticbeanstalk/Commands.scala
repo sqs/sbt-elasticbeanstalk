@@ -46,11 +46,10 @@ trait ElasticBeanstalkCommands {
     }
   }
 
-  val ebCreateVersionTask = (eb.ebClient, eb.ebDeployments, eb.ebUploadSourceBundle, eb.ebTargetEnvironments, version, streams) map {
-    (ebClient, ebDeployments, ebSourceBundle, targetEnvs, version, s) => {
-      ebDeployments foreach { d => s.log.info("Updating deployment "+d+" to version "+version) }
+  val ebCreateVersionTask = (eb.ebClient, eb.ebUploadSourceBundle, eb.ebTargetEnvironments, streams) map {
+    (ebClient, ebSourceBundle, targetEnvs, s) => {
       val versionLabel = ebSourceBundle.getS3Key
-      val appVersions = targetEnvs.keys.map(_.appName).toSet.map { (appName: String) =>
+      targetEnvs.keys.map(_.appName).toSet.map { (appName: String) =>
         appName ->
           ebClient.createApplicationVersion(
             new CreateApplicationVersionRequest()
@@ -60,32 +59,22 @@ trait ElasticBeanstalkCommands {
               .withDescription("Deployed by " + System.getProperty("user.name"))
           ).getApplicationVersion
       }.toMap
+    }
+  }
 
+  val ebUpdateVersionTask = (eb.ebClient, eb.ebUploadSourceBundle, eb.ebCreateVersion, eb.ebTargetEnvironments, streams) map {
+    (ebClient, ebSourceBundle, appVersions, targetEnvs, s) => {
       targetEnvs.map { case (deployment, targetEnv) =>
         val appVersion = appVersions(deployment.appName)
 
-//        val envVarSettings = deployment.environmentVariables.map { case (k, v) =>
-//          new ConfigurationOptionSetting("aws:elasticbeanstalk:application:environment", k, v)
-//        }
-        s.log.debug("Updating environment "+targetEnv.getEnvironmentName)
+        s.log.info("Updating environment "+targetEnv.getEnvironmentName)
         val res = throttled { ebClient.updateEnvironment(
           new UpdateEnvironmentRequest()
             .withEnvironmentName(targetEnv.getEnvironmentName)
             .withVersionLabel(appVersion.getVersionLabel)
-
-//          new CreateEnvironmentRequest()
-//            .withApplicationName(targetEnv.getApplicationName)
-//            .withEnvironmentName(targetEnv.getEnvironmentName)
-//            .withVersionLabel(appVersion.getVersionLabel)
-//            .withCNAMEPrefix(targetEnv.getCNAME)
-//            .withTemplateName(deployment.templateName)
-//            .withOptionSettings(envVarSettings)
         )}
 
-        // TODO: Update
-        s.log.info("Elastic Beanstalk app version update complete. The new version will not be available " +
-          "until the new environment is ready. When the new environment is ready, its " +
-          "CNAME will be swapped with the current environment's CNAME, resulting in no downtime.\n" +
+        s.log.info("Elastic Beanstalk app version update complete. The new version will be available momentarily.\n" +
           "URL: http://" + res.getCNAME() + "\n" +
           "Status: " + res.getHealth())
         deployment -> (new EnvironmentDescription().withEnvironmentName(res.getEnvironmentName).withCNAME(res.getCNAME))
@@ -122,20 +111,8 @@ trait ElasticBeanstalkCommands {
     s.log.info(logPrefix + "Deployment complete.")
   }
 
-  val ebSetUpEnvForAppVersionTask = (eb.ebDeployments, eb.ebUploadSourceBundle, eb.ebTargetEnvironments, eb.ebClient, streams) map {
-    (deployments, sourceBundle, targetEnvs, ebClient, s) => {
-      val versionLabel = sourceBundle.getS3Key
-      val appVersions = targetEnvs.keys.map(_.appName).toSet.map { (appName: String) =>
-        appName ->
-        ebClient.createApplicationVersion(
-          new CreateApplicationVersionRequest()
-            .withApplicationName(appName)
-            .withVersionLabel(versionLabel)
-            .withSourceBundle(sourceBundle)
-            .withDescription("Deployed by " + System.getProperty("user.name"))
-        ).getApplicationVersion
-      }.toMap
-
+  val ebSetUpEnvForAppVersionTask = (eb.ebDeployments, eb.ebCreateVersion, eb.ebTargetEnvironments, eb.ebClient, streams) map {
+    (deployments, appVersions, targetEnvs, ebClient, s) => {
       targetEnvs.map { case (deployment, targetEnv) =>
           val appVersion = appVersions(deployment.appName)
           // TODO: check if remote config template is the same as the local one and warn/fail if not
@@ -146,7 +123,7 @@ trait ElasticBeanstalkCommands {
 
           s.log.info(
             "Creating new environment for application version on Elastic Beanstalk:\n" +
-              "  EB app version label: " + versionLabel + "\n" +
+              "  EB app version label: " + appVersion.getVersionLabel + "\n" +
               "  EB app: " + deployment.appName + "\n" +
               "  EB environment name: " + targetEnv.getEnvironmentName + "\n" +
               "  CNAME: " + targetEnv.getCNAME + "\n" +
