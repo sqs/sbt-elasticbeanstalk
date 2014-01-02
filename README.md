@@ -60,13 +60,20 @@ val main = play.Project(appName, appVersion, appDependencies).settings(
 
 You must create the S3 bucket and Elastic Beanstalk app and environment specified in this file. You can specify your preferred AWS region.
 
-Create a file in `$HOME/.aws-credentials` with your AWS credentials in the following format:
+Either create a file in `$HOME/.aws-credentials` with your AWS credentials in the following format:
 
 ```
 accessKey = <your AWS access key>
 secretKey = <your AWS secret key>
 ```
 
+... or pass these two values as properties to `sbt`:
+
+```
+sbt -DaccessKey=your_AWS_access_key -DsecretKey=your_AWS_secret_key
+```
+
+Note that the `.aws-credentials` file takes precedence over the `System` properties.
 
 Configuration for non-Play
 -------------
