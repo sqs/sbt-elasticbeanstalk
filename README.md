@@ -165,6 +165,11 @@ Changelog
 * 0.0.2: Added support for deployment to multiple apps and environments
 * 0.0.1: Initial release
 
+Contributors
+------------
+Quinn Slack ([sqs])
+Joe Barnes ([barnesjd])
+
 
 License
 -------
@@ -174,3 +179,6 @@ This code is open source software licensed under the [Apache 2.0 License][apache
 [apache2]: http://www.apache.org/licenses/LICENSE-2.0.html
 [awseb]: http://aws.amazon.com/elasticbeanstalk/
 [play2war]: https://github.com/dlecan/play2-war-plugin
+
+[sqs]: https://github.com/sqs
+[barnesjd]: https://github.com/barnesjd
