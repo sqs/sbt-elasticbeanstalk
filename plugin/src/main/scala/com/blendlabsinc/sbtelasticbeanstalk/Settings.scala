@@ -2,7 +2,6 @@ package com.blendlabsinc.sbtelasticbeanstalk
 
 import com.blendlabsinc.sbtelasticbeanstalk.core.AWS
 import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
-import com.github.play2war.plugin.Play2WarKeys
 import sbt.{ Setting, Hash }
 import sbt.Keys.{ baseDirectory, commands }
 
@@ -11,14 +10,15 @@ trait ElasticBeanstalkSettings {
 
   val sessionId = new java.math.BigInteger(130, new java.security.SecureRandom()).toString(32) // HACK TODO
   lazy val elasticBeanstalkSettings = Seq[Setting[_]](
-    ebAppBundle <<= Play2WarKeys.war,
     ebEnvironmentNameSuffix := { (name) =>
       val maxLen = 23
       val uniq = sessionId
       if (name.length > (23 - 7)) throw new Exception("environment name too long: " + name)
-      name + "-" + System.getenv("USER").take(3) + uniq.take(3)
+      name + "-" + System.getProperty("user.name").take(3) + uniq.take(3)
     },
     ebDeploy <<= ebDeployTask,
+    ebCreateVersion <<= ebCreateVersionTask,
+    ebUpdateVersion <<= ebUpdateVersionTask,
     ebQuickUpdate <<= ebQuickUpdateTask,
     ebSetUpEnvForAppVersion <<= ebSetUpEnvForAppVersionTask,
     ebWait <<= ebWaitForEnvironmentsTask,

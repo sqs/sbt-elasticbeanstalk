@@ -18,7 +18,7 @@ class SourceBundleUploader(
 
   // TODO: make async
   def upload(): S3Location = {
-    val key = bundleFile.getName + "-" + System.getenv("USER") + "-" + dateFormatter.format(new Date)
+    val key = bundleFile.getName + "-" + System.getProperty("user.name") + "-" + dateFormatter.format(new Date)
 
     val tx = new TransferManager(awsCredentials)
 

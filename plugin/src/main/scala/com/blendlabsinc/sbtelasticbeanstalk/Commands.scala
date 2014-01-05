@@ -7,7 +7,7 @@ import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
 import com.blendlabsinc.sbtelasticbeanstalk.core.{ AWS, SourceBundleUploader }
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.io.File
-import sbt.Keys.{ state, streams }
+import sbt.Keys.{ state, streams, version }
 import sbt.Path._
 import sbt.{ IO, Project, TaskKey, inputTask }
 import scala.actors.Futures
@@ -46,6 +46,42 @@ trait ElasticBeanstalkCommands {
     }
   }
 
+  val ebCreateVersionTask = (eb.ebClient, eb.ebUploadSourceBundle, eb.ebTargetEnvironments, streams) map {
+    (ebClient, ebSourceBundle, targetEnvs, s) => {
+      val versionLabel = ebSourceBundle.getS3Key
+      targetEnvs.keys.map(_.appName).toSet.map { (appName: String) =>
+        appName ->
+          ebClient.createApplicationVersion(
+            new CreateApplicationVersionRequest()
+              .withApplicationName(appName)
+              .withVersionLabel(versionLabel)
+              .withSourceBundle(ebSourceBundle)
+              .withDescription("Deployed by " + System.getProperty("user.name"))
+          ).getApplicationVersion
+      }.toMap
+    }
+  }
+
+  val ebUpdateVersionTask = (eb.ebClient, eb.ebUploadSourceBundle, eb.ebCreateVersion, eb.ebTargetEnvironments, streams) map {
+    (ebClient, ebSourceBundle, appVersions, targetEnvs, s) => {
+      targetEnvs.map { case (deployment, targetEnv) =>
+        val appVersion = appVersions(deployment.appName)
+
+        s.log.info("Updating environment "+targetEnv.getEnvironmentName)
+        val res = throttled { ebClient.updateEnvironment(
+          new UpdateEnvironmentRequest()
+            .withEnvironmentName(targetEnv.getEnvironmentName)
+            .withVersionLabel(appVersion.getVersionLabel)
+        )}
+
+        s.log.info("Elastic Beanstalk app version update complete. The new version will be available momentarily.\n" +
+          "URL: http://" + res.getCNAME() + "\n" +
+          "Status: " + res.getHealth())
+        deployment -> (new EnvironmentDescription().withEnvironmentName(res.getEnvironmentName).withCNAME(res.getCNAME))
+      }.toMap
+    }
+  }
+
   def waitAndSwap(deployment: Deployment, setUpEnv: EnvironmentDescription, parentEnv: Option[EnvironmentDescription], ebClient: AWSElasticBeanstalkClient, s: sbt.std.TaskStreams[_]) {
     waitForEnvironment(deployment, setUpEnv, ebClient, s)
 
@@ -75,20 +111,8 @@ trait ElasticBeanstalkCommands {
     s.log.info(logPrefix + "Deployment complete.")
   }
 
-  val ebSetUpEnvForAppVersionTask = (eb.ebDeployments, eb.ebUploadSourceBundle, eb.ebTargetEnvironments, eb.ebClient, streams) map {
-    (deployments, sourceBundle, targetEnvs, ebClient, s) => {
-      val versionLabel = sourceBundle.getS3Key
-      val appVersions = targetEnvs.keys.map(_.appName).toSet.map { (appName: String) =>
-        appName ->
-        ebClient.createApplicationVersion(
-          new CreateApplicationVersionRequest()
-            .withApplicationName(appName)
-            .withVersionLabel(versionLabel)
-            .withSourceBundle(sourceBundle)
-            .withDescription("Deployed by " + System.getenv("USER"))
-        ).getApplicationVersion
-      }.toMap
-
+  val ebSetUpEnvForAppVersionTask = (eb.ebDeployments, eb.ebCreateVersion, eb.ebTargetEnvironments, eb.ebClient, streams) map {
+    (deployments, appVersions, targetEnvs, ebClient, s) => {
       targetEnvs.map { case (deployment, targetEnv) =>
           val appVersion = appVersions(deployment.appName)
           // TODO: check if remote config template is the same as the local one and warn/fail if not
@@ -99,7 +123,7 @@ trait ElasticBeanstalkCommands {
 
           s.log.info(
             "Creating new environment for application version on Elastic Beanstalk:\n" +
-              "  EB app version label: " + versionLabel + "\n" +
+              "  EB app version label: " + appVersion.getVersionLabel + "\n" +
               "  EB app: " + deployment.appName + "\n" +
               "  EB environment name: " + targetEnv.getEnvironmentName + "\n" +
               "  CNAME: " + targetEnv.getCNAME + "\n" +
