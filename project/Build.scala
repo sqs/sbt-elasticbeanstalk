@@ -21,7 +21,7 @@ object Build extends Build {
   ).settings(
     libraryDependencies ++= Seq(
       "com.amazonaws" % "aws-java-sdk" % "1.3.26",
-      "org.scalatest" %% "scalatest" % "1.8" % "test"
+      "org.scalatest" %% "scalatest" % "1.9.2" % "test"
     )
   )
 
@@ -32,18 +32,28 @@ object Build extends Build {
   ).settings(
     sbtPlugin := true,
     resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns),
-    libraryDependencies ++= Seq(
+    libraryDependencies <++= scalaVersion { sv => Seq(
       "com.fasterxml.jackson.core" % "jackson-core" % "2.1.1",
       "com.fasterxml.jackson.core" % "jackson-databind" % "2.1.1",
       "net.schmizz" % "sshj" % "0.8.1",
       "org.bouncycastle" % "bcprov-jdk16" % "1.46" 
-    )
+    ) ++ (if(sv.startsWith("2.10")) Seq (
+        "org.scala-lang" % "scala-actors" % sv
+      ) else Seq()) 
+    }
   ).dependsOn(sbtElasticBeanstalkCore).aggregate(sbtElasticBeanstalkCore)
 
   def commonSettings = Defaults.defaultSettings ++ Seq(
     organization := "com.blendlabsinc",
     version := "0.0.7-SNAPSHOT",
-    scalaVersion := "2.9.2",
+    sbtVersion in Global <<= scalaBinaryVersion {
+      _ match {
+        case "2.10" => "0.13.1"
+        case "2.9.2" => "0.12.4"
+      }
+    },
+    scalaVersion in Global := "2.9.2",
+    crossScalaVersions := Seq("2.9.2", "2.10.3"),
     scalacOptions ++= Seq("-unchecked", "-deprecation"),
     publishMavenStyle := false,
     publishArtifact in Test := false,
