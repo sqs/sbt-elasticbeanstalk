@@ -1,5 +1,7 @@
 import sbt._
 import Keys._
+import bintray.Plugin._
+import bintray.Keys._
 
 object Build extends Build {
   lazy val root = Project(
@@ -43,7 +45,8 @@ object Build extends Build {
     }
   ).dependsOn(sbtElasticBeanstalkCore).aggregate(sbtElasticBeanstalkCore)
 
-  def commonSettings = Defaults.defaultSettings ++ Seq(
+  def commonSettings = Defaults.defaultSettings ++
+    seq(bintrayPublishSettings:_*) ++ Seq(
     organization := "com.joescii",
     version := "0.0.7",
     sbtVersion in Global <<= scalaBinaryVersion {
@@ -59,6 +62,9 @@ object Build extends Build {
     publishArtifact in Test := false,
     publishArtifact in (Compile, packageDoc) := false,
     publishArtifact in (Compile, packageSrc) := false,
-    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html"))
+    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
+    publishMavenStyle := false,
+    repository in bintray := "sbt-plugins",
+    bintrayOrganization in bintray := None
     )
 }
