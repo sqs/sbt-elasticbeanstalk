@@ -21,6 +21,8 @@ object Build extends Build {
     file("core"),
     settings = commonSettings
   ).settings(
+    publishMavenStyle := true,
+    sbtPlugin := false,
     libraryDependencies ++= Seq(
       "com.amazonaws" % "aws-java-sdk" % "1.3.26",
       "org.scalatest" %% "scalatest" % "1.9.2" % "test"
@@ -30,8 +32,8 @@ object Build extends Build {
   lazy val sbtElasticBeanstalkPlugin = Project(
     "sbt-elasticbeanstalk-plugin",
     file("plugin"),
-    settings = commonSettings
-  ).settings(
+    settings = Seq(
+    publishMavenStyle := false,
     sbtPlugin := true,
     resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns),
     libraryDependencies <++= scalaVersion { sv => Seq(
@@ -42,11 +44,11 @@ object Build extends Build {
     ) ++ (if(sv.startsWith("2.10")) Seq (
         "org.scala-lang" % "scala-actors" % sv
       ) else Seq()) 
-    }
+    }) ++ commonSettings
   ).dependsOn(sbtElasticBeanstalkCore).aggregate(sbtElasticBeanstalkCore)
 
   def commonSettings = Defaults.defaultSettings ++
-    seq(bintrayPublishSettings:_*) ++ Seq(
+    Seq(
     organization := "com.joescii",
     version := "0.0.7",
     sbtVersion in Global <<= scalaBinaryVersion {
@@ -58,13 +60,14 @@ object Build extends Build {
     scalaVersion in Global := "2.9.2",
     crossScalaVersions := Seq("2.9.2", "2.10.3"),
     scalacOptions ++= Seq("-unchecked", "-deprecation"),
-    publishMavenStyle := false,
     publishArtifact in Test := false,
     publishArtifact in (Compile, packageDoc) := false,
     publishArtifact in (Compile, packageSrc) := false,
-    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html")),
-    publishMavenStyle := false,
+    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html"))
+    ) ++ bintraySettings
+    
+  def bintraySettings = seq(bintrayPublishSettings:_*) ++ Seq(
     repository in bintray := "sbt-plugins",
     bintrayOrganization in bintray := None
-    )
+  )
 }
