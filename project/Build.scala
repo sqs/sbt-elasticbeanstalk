@@ -58,6 +58,7 @@ object Build extends Build {
     publishMavenStyle := false,
     publishArtifact in Test := false,
     publishArtifact in (Compile, packageDoc) := false,
-    publishArtifact in (Compile, packageSrc) := false
-  )
+    publishArtifact in (Compile, packageSrc) := false,
+    licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html"))
+    )
 }
