@@ -6,8 +6,4 @@ resolvers += "Play2war plugins release" at "http://repository-play-war.forge.clo
 
 addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9-RC1")
 
-resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns)
-
-// resolvers += Resolver.file("Local Ivy", file(Path.userHome + "/.ivy2/local"))(Resolver.ivyStylePatterns)
-
 addSbtPlugin("com.joescii" % "sbt-elasticbeanstalk-plugin" % "0.0.7-SNAPSHOT")

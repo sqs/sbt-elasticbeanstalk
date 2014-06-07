@@ -81,9 +81,7 @@ Configuration for non-Play
 In `project/plugins.sbt`, add:
 
 ```scala
-resolvers += "Play2war plugins release" at "http://repository-play-war.forge.cloudbees.com/release/"
-
-addSbtPlugin("com.joescii" % "sbt-elasticbeanstalk-plugin" % "0.0.6-SNAPSHOT")
+addSbtPlugin("com.joescii" % "sbt-elasticbeanstalk-plugin" % "0.0.7-SNAPSHOT")
 ```
 
 In `build.sbt`, add the following at the top of the file:
