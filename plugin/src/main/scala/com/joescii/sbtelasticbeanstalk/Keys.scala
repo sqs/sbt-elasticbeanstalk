@@ -1,4 +1,4 @@
-package com.blendlabsinc.sbtelasticbeanstalk
+package com.joescii.sbtelasticbeanstalk
 
 import com.amazonaws.services.ec2.AmazonEC2Client
 import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient

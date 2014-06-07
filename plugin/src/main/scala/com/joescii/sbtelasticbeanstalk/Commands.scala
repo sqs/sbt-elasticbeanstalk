@@ -1,10 +1,10 @@
-package com.blendlabsinc.sbtelasticbeanstalk
+package com.joescii.sbtelasticbeanstalk
 
 import com.amazonaws.services.ec2.{ model => ec2 }
 import com.amazonaws.services.elasticbeanstalk.AWSElasticBeanstalkClient
 import com.amazonaws.services.elasticbeanstalk.model._
-import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
-import com.blendlabsinc.sbtelasticbeanstalk.core.{ AWS, SourceBundleUploader }
+import com.joescii.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
+import com.joescii.sbtelasticbeanstalk.core.{ AWS, SourceBundleUploader }
 import com.fasterxml.jackson.databind.ObjectMapper
 import java.io.File
 import sbt.Keys.{ state, streams, version }

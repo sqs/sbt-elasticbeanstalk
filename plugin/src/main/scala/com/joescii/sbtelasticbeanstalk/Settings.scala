@@ -1,7 +1,7 @@
-package com.blendlabsinc.sbtelasticbeanstalk
+package com.joescii.sbtelasticbeanstalk
 
-import com.blendlabsinc.sbtelasticbeanstalk.core.AWS
-import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
+import com.joescii.sbtelasticbeanstalk.core.AWS
+import com.joescii.sbtelasticbeanstalk.ElasticBeanstalkKeys._
 import sbt.{ Setting, Hash }
 import sbt.Keys.{ baseDirectory, commands }
 

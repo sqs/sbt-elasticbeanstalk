@@ -1,4 +1,4 @@
-package com.blendlabsinc.sbtelasticbeanstalk
+package com.joescii.sbtelasticbeanstalk
 
 import sbt.Plugin
 

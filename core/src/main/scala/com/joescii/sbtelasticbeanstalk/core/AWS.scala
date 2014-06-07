@@ -1,4 +1,4 @@
-package com.blendlabsinc.sbtelasticbeanstalk.core
+package com.joescii.sbtelasticbeanstalk.core
 
 import com.amazonaws.auth.{BasicAWSCredentials, PropertiesCredentials}
 import com.amazonaws.services.ec2.AmazonEC2Client

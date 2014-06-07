@@ -1,8 +1,8 @@
-package com.blendlabsinc.sbtelasticbeanstalk
+package com.joescii.sbtelasticbeanstalk
 
 import com.amazonaws.services.elasticbeanstalk.model._
-import com.blendlabsinc.sbtelasticbeanstalk.core.AWS
-import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
+import com.joescii.sbtelasticbeanstalk.core.AWS
+import com.joescii.sbtelasticbeanstalk.{ ElasticBeanstalkKeys => eb }
 import sbt.{ Command, Project }
 import sbt.Keys.streams
 import scala.collection.JavaConversions._

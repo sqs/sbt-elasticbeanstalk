@@ -22,7 +22,7 @@ addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9-RC1")
 
 resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns)
 
-addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk-plugin" % "0.0.6-SNAPSHOT")
+addSbtPlugin("com.joescii" % "sbt-elasticbeanstalk-plugin" % "0.0.6-SNAPSHOT")
 ```
 
 (Note: You need the 0.9-SNAPSHOT build of [play2-war-plugin][play2war], which supports Play 2.1 and is built from git master. For convenience, is hosted on the SQS Ivy repository included above.)
@@ -30,8 +30,8 @@ addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk-plugin" % "0.0.6-SNAPSHO
 In `project/Build.scala`, add the following at the top of the file:
 
 ```scala
-import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalk, Deployment }
-import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
+import com.joescii.sbtelasticbeanstalk.{ ElasticBeanstalk, Deployment }
+import com.joescii.sbtelasticbeanstalk.ElasticBeanstalkKeys._
 import com.github.play2war.plugin._
 ```
 
@@ -83,14 +83,14 @@ In `project/plugins.sbt`, add:
 ```scala
 resolvers += "Play2war plugins release" at "http://repository-play-war.forge.cloudbees.com/release/"
 
-addSbtPlugin("com.blendlabsinc" % "sbt-elasticbeanstalk-plugin" % "0.0.6-SNAPSHOT")
+addSbtPlugin("com.joescii" % "sbt-elasticbeanstalk-plugin" % "0.0.6-SNAPSHOT")
 ```
 
 In `build.sbt`, add the following at the top of the file:
 
 ```scala
-import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalk, Deployment }
-import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
+import com.joescii.sbtelasticbeanstalk.{ ElasticBeanstalk, Deployment }
+import com.joescii.sbtelasticbeanstalk.ElasticBeanstalkKeys._
 ```
 
 Add the following settings to your project:

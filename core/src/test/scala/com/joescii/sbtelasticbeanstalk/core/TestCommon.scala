@@ -1,4 +1,4 @@
-package com.blendlabsinc.sbtelasticbeanstalk.core
+package com.joescii.sbtelasticbeanstalk.core
 
 import java.io.File
 

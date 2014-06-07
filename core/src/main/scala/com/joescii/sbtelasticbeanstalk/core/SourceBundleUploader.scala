@@ -1,4 +1,4 @@
-package com.blendlabsinc.sbtelasticbeanstalk.core
+package com.joescii.sbtelasticbeanstalk.core
 
 import com.amazonaws.auth.AWSCredentials
 //import com.amazonaws.services.s3.AmazonS3Client

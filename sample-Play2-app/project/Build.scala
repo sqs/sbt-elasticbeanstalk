@@ -1,8 +1,8 @@
 import sbt._
 import Keys._
 import play.Project._
-import com.blendlabsinc.sbtelasticbeanstalk.{ ElasticBeanstalk, Deployment }
-import com.blendlabsinc.sbtelasticbeanstalk.ElasticBeanstalkKeys._
+import com.joescii.sbtelasticbeanstalk.{ ElasticBeanstalk, Deployment }
+import com.joescii.sbtelasticbeanstalk.ElasticBeanstalkKeys._
 import com.github.play2war.plugin._
 
 object ApplicationBuild extends Build {

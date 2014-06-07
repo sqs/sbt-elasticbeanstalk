@@ -44,7 +44,7 @@ object Build extends Build {
   ).dependsOn(sbtElasticBeanstalkCore).aggregate(sbtElasticBeanstalkCore)
 
   def commonSettings = Defaults.defaultSettings ++ Seq(
-    organization := "com.blendlabsinc",
+    organization := "com.joescii",
     version := "0.0.7-SNAPSHOT",
     sbtVersion in Global <<= scalaBinaryVersion {
       _ match {

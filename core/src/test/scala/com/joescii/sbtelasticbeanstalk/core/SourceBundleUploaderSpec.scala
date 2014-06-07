@@ -1,4 +1,4 @@
-package com.blendlabsinc.sbtelasticbeanstalk.core
+package com.joescii.sbtelasticbeanstalk.core
 
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
