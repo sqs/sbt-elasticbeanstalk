@@ -45,7 +45,7 @@ object Build extends Build {
 
   def commonSettings = Defaults.defaultSettings ++ Seq(
     organization := "com.joescii",
-    version := "0.0.7-SNAPSHOT",
+    version := "0.0.7",
     sbtVersion in Global <<= scalaBinaryVersion {
       _ match {
         case "2.10" => "0.13.1"
