@@ -20,8 +20,6 @@ resolvers += "Play2war plugins release" at "http://repository-play-war.forge.clo
 
 addSbtPlugin("com.github.play2war" % "play2-war-plugin" % "0.9-RC1")
 
-resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns)
-
 addSbtPlugin("com.joescii" % "sbt-elasticbeanstalk-plugin" % "0.0.7")
 ```
 
@@ -39,7 +37,6 @@ Add the following settings to your project:
 
 ```scala
 val main = play.Project(appName, appVersion, appDependencies).settings(
-  resolvers += Resolver.url("SQS Ivy", url("http://sqs.github.com/repo"))(Resolver.ivyStylePatterns),
   Play2WarKeys.servletVersion := "3.0",
   ebAppBundle <<= Play2WarKeys.war,
   ebS3BucketName := "some-bucket-name",
@@ -166,7 +163,7 @@ Changelog
 Contributors
 ------------
 Quinn Slack ([sqs])
-Joe Barnes ([barnesjd])
+Joe Barnes ([joescii])
 
 
 License
@@ -179,4 +176,4 @@ This code is open source software licensed under the [Apache 2.0 License][apache
 [play2war]: https://github.com/dlecan/play2-war-plugin
 
 [sqs]: https://github.com/sqs
-[barnesjd]: https://github.com/barnesjd
+[joescii]: https://github.com/joescii
