@@ -1,0 +1,33 @@
+{
+  "organization" : "com.joescii",
+  "name" : "sbt-elasticbeanstalk-plugin",
+  "version" : "0.0.7",
+  "description" : "sbt plugin for deploying WAR files to Amazon Web Services (AWS) Elastic Beanstalk",
+  "site" : "https://github.com/sqs/sbt-elasticbeanstalk",
+  "tags" : [ "amazon", "aws", "elastic beanstalk", "cloud", "web" ],
+  "docs" : "",
+  "resolvers" : [ "https://oss.sonatype.org/content/repositories/releases" ],
+  "dependencies" : [ {
+    "organization" : "com.fasterxml.jackson.core",
+    "name" : "jackson-core",
+    "version" : "2.1.1"
+  }, {
+    "organization" : "com.fasterxml.jackson.core",
+    "name" : "jackson-databind",
+    "version" : "2.1.1"
+  }, {
+    "organization" : "net.schmizz",
+    "name" : "sshj",
+    "version" : "0.8.1"
+  }, {
+    "organization" : "org.bouncycastle",
+    "name" : "bcprov-jdk16",
+    "version" : "1.46"
+  } ],
+  "scalas" : [ "2.9.2", "2.10.3" ],
+  "licenses" : [ {
+    "name" : "Apache-2.0",
+    "url" : "http://www.apache.org/licenses/LICENSE-2.0.html"
+  } ],
+  "sbt" : true
+}

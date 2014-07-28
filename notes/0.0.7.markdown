@@ -1,0 +1,9 @@
+#AWS @scala_sbt #scala
+
+* Windows support. 
+* Decoupled from [Play][1] to support [Lift][2], etc. 
+* Added `eb-update-version`/`ebUpdateVersion`. 
+* Reads System properties when `~/.aws-credentials` cannot be found.
+
+[1]: http://www.playframework.com/
+[2]: http://liftweb.net 

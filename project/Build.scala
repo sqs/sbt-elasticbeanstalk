@@ -44,12 +44,13 @@ object Build extends Build {
     ) ++ (if(sv.startsWith("2.10")) Seq (
         "org.scala-lang" % "scala-actors" % sv
       ) else Seq()) 
-    }) ++ commonSettings
+    }) ++ commonSettings ++ lsimplicitlySettings
   ).dependsOn(sbtElasticBeanstalkCore).aggregate(sbtElasticBeanstalkCore)
 
   def commonSettings = Defaults.defaultSettings ++
     Seq(
     organization := "com.joescii",
+    homepage := Some(url("https://github.com/sqs/sbt-elasticbeanstalk")),
     version := "0.0.7",
     sbtVersion in Global <<= scalaBinaryVersion {
       _ match {
@@ -64,10 +65,21 @@ object Build extends Build {
     publishArtifact in (Compile, packageDoc) := false,
     publishArtifact in (Compile, packageSrc) := false,
     licenses += ("Apache-2.0", url("http://www.apache.org/licenses/LICENSE-2.0.html"))
-    ) ++ bintraySettings
+    ) ++ bintraySettings 
     
   def bintraySettings = seq(bintrayPublishSettings:_*) ++ Seq(
     repository in bintray := "sbt-plugins",
     bintrayOrganization in bintray := None
   )
+  
+  def lsimplicitlySettings = {
+    import ls.Plugin._
+    seq(lsSettings :_*) ++ Seq(
+      (LsKeys.tags in LsKeys.lsync) := Seq("amazon", "aws", "elastic beanstalk", "cloud", "web"),
+      (description in LsKeys.lsync) := "sbt plugin for deploying WAR files to Amazon Web Services (AWS) Elastic Beanstalk",
+      (LsKeys.ghUser in LsKeys.lsync) := Some("sqs"),
+      (LsKeys.ghRepo in LsKeys.lsync) := Some("sbt-elasticbeanstalk"),
+      (LsKeys.ghBranch in LsKeys.lsync) := Some("master")
+    )
+  }
 }
